@@ -404,6 +404,7 @@ Status SlotMigrator::finishSuccessfulMigration() {
     return s.Prefixed(fmt::format("failed to set slot {} as migrated to {}", migrating_slot_.load(), dst_ip_port));
   }
 
+  svr_->slot_hotness_map_[migrating_slot_] = 0;
   migrate_failed_slot_ = -1;
 
   return Status::OK();

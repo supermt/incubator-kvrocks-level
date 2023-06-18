@@ -92,7 +92,8 @@ class Cluster {
   Status LoadClusterNodes(const std::string &file_path);
 
   static bool SubCommandIsExecExclusive(const std::string &subcommand);
-
+  std::string GetServerHotness();
+  void SetSlotAccessed(int slot);
  private:
   std::string genNodesDescription();
   std::string genNodesInfo();

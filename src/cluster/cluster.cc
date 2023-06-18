@@ -452,7 +452,7 @@ SlotInfo Cluster::genSlotNodeInfo(int start, int end, const std::shared_ptr<Clus
   std::vector<SlotInfo::NodeInfo> vn;
   vn.push_back({n->host, n->port, n->id});  // itself
 
-  for (const auto &id : n->replicas) {  // replicas
+  for (const auto &id : n->replicas) {      // replicas
     if (nodes_.find(id) == nodes_.end()) continue;
     vn.push_back({nodes_[id]->host, nodes_[id]->port, nodes_[id]->id});
   }
@@ -780,6 +780,7 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
       return {Status::RedisExecErr, "TRYAGAIN Can't write to slot being migrated which is in write forbidden phase"};
     }
 
+    SetSlotAccessed(slot);
     return Status::OK();  // I'm serving this slot
   }
 
@@ -788,6 +789,7 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     // The destination node has to serve the requests from the migrating slot,
     // although the slot is not belong to itself. Therefore, we record the importing slot
     // and mark the importing connection to accept the importing data.
+    SetSlotAccessed(slot);
     return Status::OK();  // I'm serving the importing connection
   }
 
@@ -795,14 +797,19 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     // After the slot is migrated, new requests of the migrated slot will be moved to
     // the destination server. Before the central controller change the topology, the destination
     // server should record the imported slots to accept new data of the imported slots.
+    SetSlotAccessed(slot);
     return Status::OK();  // I'm serving the imported slot
   }
 
   if (myself_ && myself_->role == kClusterSlave && !attributes->IsWrite() &&
       nodes_.find(myself_->master_id) != nodes_.end() && nodes_[myself_->master_id] == slots_nodes_[slot]) {
+    SetSlotAccessed(slot);
     return Status::OK();  // My master is serving this slot
   }
 
   return {Status::RedisExecErr,
           fmt::format("MOVED {} {}:{}", slot, slots_nodes_[slot]->host, slots_nodes_[slot]->port)};
 }
+void Cluster::SetSlotAccessed(int slot) { svr_->slot_hotness_map_[slot]++; }
+
+std::string Cluster::GetServerHotness() { return svr_->GetHotnessJson(); }

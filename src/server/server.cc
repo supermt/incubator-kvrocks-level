@@ -1764,3 +1764,15 @@ std::list<std::pair<std::string, uint32_t>> Server::GetSlaveHostAndPort() {
   slave_threads_mu_.unlock();
   return result;
 }
+std::string Server::GetHotnessJson() {
+  std::string output;
+  output.reserve(8 * 16384);
+  output.append("{");
+  for (auto [key, value] : slot_hotness_map_) {
+    if (value != 0) output.append(fmt::format(R"("{}":{},)", key, value));
+  }
+  if (output.size() > 1) output.pop_back();
+  output.append("}");
+  output.shrink_to_fit();
+  return output;
+}
