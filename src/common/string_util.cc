@@ -191,7 +191,7 @@ int StringMatchLen(const char *pattern, size_t pattern_len, const char *string, 
         /* fall through */
       default:
         if (!nocase) {
-          if (pattern[0] != string[0]) return 0; /* no match */
+          if (pattern[0] != string[0]) return 0;                                                       /* no match */
         } else {
           if (tolower(static_cast<int>(pattern[0])) != tolower(static_cast<int>(string[0]))) return 0; /* no match */
         }
@@ -355,6 +355,28 @@ std::string EscapeString(const std::string &s) {
   }
 
   return str;
+}
+
+Status CheckCmdOutput(std::string &cmd, std::string *output) {
+  output->clear();
+  FILE *pipe = popen(cmd.c_str(), "r");
+  if (!pipe) return {Status::NotOK, "Can not Execute result"};
+  char buffer[128];
+  while (fgets(buffer, 128, pipe)) {
+    std::string buffer_str = std::string(buffer);
+    buffer_str = util::ToLower(buffer_str);
+    *output += buffer_str;
+    if (buffer_str.find("failed") != buffer_str.npos || buffer_str.find("error") != buffer_str.npos ||
+        buffer_str.find("no such file") != buffer_str.npos) {
+      pclose(pipe);
+      return {Status::NotOK, buffer_str};
+    }
+    //    if (buffer_str.find("MB/s") != buffer_str.npos) {
+    //      *worthy_result += (buffer_str);
+    //    }
+  }
+  pclose(pipe);
+  return Status::OK();
 }
 
 }  // namespace util

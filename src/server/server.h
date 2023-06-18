@@ -312,4 +312,5 @@ class Server {
   std::atomic<size_t> watched_key_size_ = 0;
   std::map<std::string, std::set<redis::Connection *>> watched_key_map_;
   std::shared_mutex watched_key_mutex_;
+  Status ChooseMigrationMethod();
 };

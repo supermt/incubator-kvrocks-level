@@ -69,6 +69,14 @@ struct CLIOptions {
   explicit CLIOptions(std::string_view file) : conf_file(file) {}
 };
 
+enum MigrationStrategy : int {
+  kSeekAndInsert = 0,
+  kBatchedSeekAndInsert = 1,
+  kCompactAndMerge = 2,
+  kLevelMigration = 3,
+  kInvalidMigration
+};
+
 struct Config {
  public:
   Config();
@@ -117,6 +125,12 @@ struct Config {
   std::string db_dir;
   std::string backup_dir;  // GUARD_BY(backup_mu_)
   std::string backup_sync_dir;
+  // Modified by Jinghuan
+  std::string migration_user;
+  std::string migration_agent_location;
+  std::string global_migration_sync_dir;
+  int migrate_method = kSeekAndInsert;
+  // End modification
   std::string checkpoint_dir;
   std::string sync_checkpoint_dir;
   std::string log_dir;

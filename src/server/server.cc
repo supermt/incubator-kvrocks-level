@@ -149,9 +149,12 @@ Status Server::Start() {
       return s.Prefixed("failed to load cluster nodes info");
     }
     // Create objects used for slot migration
-    slot_migrator =
-        std::make_unique<SlotMigrator>(this, config_->migrate_speed, config_->pipeline_size, config_->sequence_gap);
-    s = slot_migrator->CreateMigrationThread();
+    //    slot_migrator =
+    //        std::make_unique<SlotMigrator>(this, config_->migrate_speed, config_->pipeline_size,
+    //        config_->sequence_gap);
+    //    s = slot_migrator->CreateMigrationThread();
+    s = ChooseMigrationMethod();
+
     if (!s.IsOK()) {
       return s.Prefixed("failed to create migration thread");
     }
@@ -1775,4 +1778,57 @@ std::string Server::GetHotnessJson() {
   output.append("}");
   output.shrink_to_fit();
   return output;
+}
+
+Status Server::ChooseMigrationMethod() {
+  if (config_->cluster_enabled && config_->persist_cluster_nodes_enabled) {
+    auto s = cluster->LoadClusterNodes(config_->NodesFilePath());
+    if (!s.IsOK()) {
+      return s.Prefixed("failed to load cluster nodes info");
+    }
+    // Create objects used for slot migration
+    //    this->migration_pool_ = std::make_unique<ThreadPool>(config_->max_bg_migration);
+
+    switch (config_->migrate_method) {
+      case kSeekAndInsert: {
+        slot_migrator = std::make_unique<SlotMigrator>(this, config_->migrate_speed, config_->pipeline_size,
+                                                       config_->sequence_gap, false);
+        break;
+      }
+      case kBatchedSeekAndInsert: {
+        slot_migrator = std::make_unique<ParallelSlotMigrator>(this, config_->migrate_speed, config_->pipeline_size,
+                                                               config_->sequence_gap);
+        break;
+      }
+      case kCompactAndMerge: {
+        slot_migrator = std::make_unique<CompactAndMergeMigrator>(this, config_->migrate_speed, config_->pipeline_size,
+                                                                  config_->sequence_gap, 0);
+        break;
+      }
+      case kLevelMigration: {
+        slot_migrator = std::make_unique<LevelMigrator>(this, config_->migrate_speed, config_->pipeline_size,
+                                                        config_->sequence_gap);
+        break;
+      }
+      default:
+        return {Status::NotOK, "Current Migration method is not supported"};
+    }
+    const std::string global_tmp = config_->global_migration_sync_dir + std::to_string(config_->port);
+
+    if (!s.IsOK()) {
+      return s.Prefixed("failed to create migration parking");
+    }
+    //    slot_import_ = std::make_unique<SlotImport>(this);
+    // Create migrating thread
+    s = slot_migrator->CreateMigrationThread();
+
+    if (!s.IsOK()) {
+      return s.Prefixed("failed to create migration thread");
+    }
+    for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+      slot_hotness_map_.emplace(i, 0);
+    }
+  }
+
+  return Status::OK();
 }

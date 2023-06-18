@@ -42,8 +42,8 @@ static std::map<RedisType, std::string> type_to_cmd = {
     {kRedisZSet, "zadd"},  {kRedisBitmap, "setbit"}, {kRedisSortedint, "siadd"}, {kRedisStream, "xadd"},
 };
 
-SlotMigrator::SlotMigrator(Server *svr, int max_migration_speed, int max_pipeline_size, int seq_gap_limit)
-    : Database(svr->storage, kDefaultNamespace), svr_(svr) {
+SlotMigrator::SlotMigrator(Server *svr, int max_migration_speed, int max_pipeline_size, int seq_gap_limit, bool batched)
+    : Database(svr->storage, kDefaultNamespace), svr_(svr), batched_(batched), migrating_slots_(0) {
   // Let metadata_cf_handle_ be nullptr, and get them in real time to avoid accessing invalid pointer,
   // because metadata_cf_handle_ and db_ will be destroyed if DB is reopened.
   // [Situation]:
@@ -1114,3 +1114,9 @@ void SlotMigrator::resumeSyncCtx(const Status &migrate_result) {
     blocking_context_ = nullptr;
   }
 }
+Status SlotMigrator::MigrateStart(Server *svr, const std::string &node_id, const std::string &dst_ip, int dst_port,
+                                  int seq_gap, bool join) {
+  return {Status::NotOK, "Non-batched method"};
+}
+Status SlotMigrator::SetMigrationSlots(std::vector<int> &target_slots) { return {Status::NotOK, "Non-batched method"}; }
+

@@ -37,5 +37,6 @@ int StringMatchLen(const char *p, size_t plen, const char *s, size_t slen, int n
 std::string StringToHex(const std::string &input);
 std::vector<std::string> TokenizeRedisProtocol(const std::string &value);
 std::string EscapeString(const std::string &s);
+Status CheckCmdOutput(std::string &cmd, std::string *output);
 
 }  // namespace util
