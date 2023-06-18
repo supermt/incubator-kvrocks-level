@@ -24,11 +24,14 @@ if (DISABLE_JEMALLOC)
 endif()
 
 include(cmake/utils.cmake)
+#
+#FetchContent_DeclareGitHubWithMirror(rocksdb
+#  facebook/rocksdb v8.1.1
+#  MD5=b362246096dbd15839749da37d3ccda9
+#)
 
-FetchContent_DeclareGitHubWithMirror(rocksdb
-  facebook/rocksdb v8.1.1
-  MD5=b362246096dbd15839749da37d3ccda9
-)
+FetchContent_Declare(rocksdb
+        GIT_REPOSITORY https://github.com/supermt/rocksdb-for-kvrocks.git)
 
 FetchContent_GetProperties(jemalloc)
 FetchContent_GetProperties(snappy)
@@ -47,7 +50,7 @@ FetchContent_MakeAvailableWithArgs(rocksdb
   WITH_ZLIB=ON
   WITH_ZSTD=ON
   WITH_TOOLS=OFF
-  WITH_GFLAGS=OFF
+  WITH_GFLAGS=ON
   WITH_TBB=ON
   USE_RTTI=ON
   ROCKSDB_BUILD_SHARED=OFF
