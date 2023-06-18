@@ -899,7 +899,7 @@ Status Cluster::ValidateMigrateSlot(int slot, const std::string &dst_node_id) {
     return {Status::NotOK, "Slave can't migrate slot"};
   }
 
-  if (nodes_[dst_node_id]->role_ != kClusterMaster) {
+  if (nodes_[dst_node_id]->role != kClusterMaster) {
     return {Status::NotOK, "Can't migrate slot to a slave"};
   }
 
