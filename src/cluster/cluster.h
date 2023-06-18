@@ -81,6 +81,10 @@ class Cluster {
   int64_t GetVersion() const { return version_; }
   static bool IsValidSlot(int slot) { return slot >= 0 && slot < kClusterSlots; }
   bool IsNotMaster();
+  Status IngestFiles(const std::string &column_family, const std::vector<std::string> &files, bool fast_ingest,
+                     int target_level = 1);
+  Status MigrateSlots(std::vector<int> &slots, const std::string &dst_node_id);
+  Status ValidateMigrateSlot(int slot, const std::string &dst_node_id);
   bool IsWriteForbiddenSlot(int slot);
   Status CanExecByMySelf(const redis::CommandAttributes *attributes, const std::vector<std::string> &cmd_tokens,
                          redis::Connection *conn);
@@ -94,6 +98,7 @@ class Cluster {
   static bool SubCommandIsExecExclusive(const std::string &subcommand);
   std::string GetServerHotness();
   void SetSlotAccessed(int slot);
+
  private:
   std::string genNodesDescription();
   std::string genNodesInfo();

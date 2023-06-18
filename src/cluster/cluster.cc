@@ -813,3 +813,98 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
 void Cluster::SetSlotAccessed(int slot) { svr_->slot_hotness_map_[slot]++; }
 
 std::string Cluster::GetServerHotness() { return svr_->GetHotnessJson(); }
+Status Cluster::IngestFiles(const std::string &column_family, const std::vector<std::string> &files, bool fast_ingest,
+                            int target_level) {
+  auto cfh = svr_->storage->GetCFHandle(column_family);
+  rocksdb::Options opt = svr_->storage->GetDB()->GetOptions();
+  rocksdb::IngestExternalFileOptions ifo;
+  if (fast_ingest) {
+    ifo.sub_tier_mode = true;
+    ifo.sub_tier_base = target_level;
+  } else {
+    ifo.allow_global_seqno = true;
+    ifo.write_global_seqno = true;
+    ifo.verify_checksums_before_ingest = false;
+    ifo.ingest_behind = false;
+  }
+
+  //  ing_options.move_files = true;
+  auto start = util::GetTimeStampUS();
+  // Read and Extract Records
+
+  auto rocks_s = svr_->storage->GetDB()->IngestExternalFile(cfh, files, ifo);
+  auto end = util::GetTimeStampUS();
+
+  if (!rocks_s.ok()) {
+    LOG(INFO) << "Ingestion error, Time taken(us): " << end - start;
+    //    return Status::OK();
+    return {Status::NotOK, "Ingestion error" + rocks_s.ToString()};
+  }
+  LOG(INFO) << "Ingestion completed, Time taken(us): " << end - start;
+  return Status::OK();
+}
+Status Cluster::MigrateSlots(std::vector<int> &slots, const std::string &dst_node_id) {
+  Status s;
+  auto dst = nodes_[dst_node_id];
+  for (auto it = slots.begin(); it != slots.end(); ++it) {
+    s = ValidateMigrateSlot(*it, dst_node_id);
+    if (!s.IsOK()) {
+      LOG(WARNING) << "Slot " << *it << " is not valid for migration";
+      slots.erase(it);
+    }
+  }
+  if (slots.empty()) {
+    return {Status::NotOK, "All slots are not valid"};
+  }
+
+  switch (svr_->GetConfig()->migrate_method) {
+    case kSeekAndInsert: {
+      return {Status::NotOK, "This migration method does not support multi-slot migration"};
+    }
+    case kBatchedSeekAndInsert:
+    case kCompactAndMerge:
+    case kLevelMigration: {
+      // strange bug, this server can not get the selected migration method
+      LOG(INFO) << "function: Migrate " << this->svr_->slot_migrator->GetName();
+      s = this->svr_->slot_migrator->SetMigrationSlots(slots);
+      if (!s.IsOK()) return s;
+      s = svr_->slot_migrator->MigrateStart(svr_, dst_node_id, dst->host, dst->port, svr_->GetConfig()->sequence_gap,
+                                            false);
+      if (!s.IsOK()) return s;
+      break;
+    }
+    default:  // kCompactAndMerge = 2, kLevelMigration = 3, these two method do not support single slot migration
+      return {Status::NotOK, "This migration method does not support single slot migration"};
+  }
+
+  LOG(INFO) << "[cluster migration] Finished slot migration cmds sending, start to set nodes";
+  // Migration succeed, set slots.
+  return Status::OK();
+}
+
+Status Cluster::ValidateMigrateSlot(int slot, const std::string &dst_node_id) {
+  if (nodes_.find(dst_node_id) == nodes_.end()) {
+    return {Status::NotOK, "Can't find the destination node id"};
+  }
+
+  if (!IsValidSlot(slot)) {
+    return {Status::NotOK, "slot: " + std::to_string(slot) + " is out of range"};
+  }
+
+  if (slots_nodes_[slot] != myself_) {
+    return {Status::NotOK, "Can't migrate slot which doesn't belong to me"};
+  }
+
+  if (IsNotMaster()) {
+    return {Status::NotOK, "Slave can't migrate slot"};
+  }
+
+  if (nodes_[dst_node_id]->role_ != kClusterMaster) {
+    return {Status::NotOK, "Can't migrate slot to a slave"};
+  }
+
+  if (nodes_[dst_node_id] == myself_) {
+    return {Status::NotOK, "Can't migrate slot to myself"};
+  }
+  return Status::OK();
+}

@@ -23,6 +23,7 @@
 #include "cluster/sync_migrate_context.h"
 #include "commander.h"
 #include "error_constants.h"
+#include "time_util.h"
 
 namespace redis {
 
@@ -127,39 +128,70 @@ class CommandClusterX : public Commander {
 
     if (subcommand_ == "setnodeid" && args_.size() == 3 && args_[2].size() == kClusterNodeIdLen) return Status::OK();
 
+    //    if (subcommand_ == "migrate") {
+    //      if (args.size() < 4 || args.size() > 6) return {Status::RedisParseErr, errWrongNumOfArguments};
+    //
+    //      slot_ = GET_OR_RET(ParseInt<int64_t>(args[2], 10));
+    //
+    //      dst_node_id_ = args[3];
+    //
+    //      if (args.size() >= 5) {
+    //        auto sync_flag = util::ToLower(args[4]);
+    //        if (sync_flag == "async") {
+    //          sync_migrate_ = false;
+    //
+    //          if (args.size() == 6) {
+    //            return {Status::RedisParseErr, "Async migration does not support timeout"};
+    //          }
+    //        } else if (sync_flag == "sync") {
+    //          sync_migrate_ = true;
+    //
+    //          if (args.size() == 6) {
+    //            auto parse_result = ParseInt<int>(args[5], 10);
+    //            if (!parse_result) {
+    //              return {Status::RedisParseErr, "timeout is not an integer or out of range"};
+    //            }
+    //            if (*parse_result < 0) {
+    //              return {Status::RedisParseErr, errTimeoutIsNegative};
+    //            }
+    //            sync_migrate_timeout_ = *parse_result;
+    //          }
+    //        } else {
+    //          return {Status::RedisParseErr, "Invalid sync flag"};
+    //        }
+    //      }
+    //      return Status::OK();
+    //    }
+
     if (subcommand_ == "migrate") {
-      if (args.size() < 4 || args.size() > 6) return {Status::RedisParseErr, errWrongNumOfArguments};
-
-      slot_ = GET_OR_RET(ParseInt<int64_t>(args[2], 10));
-
-      dst_node_id_ = args[3];
-
-      if (args.size() >= 5) {
-        auto sync_flag = util::ToLower(args[4]);
-        if (sync_flag == "async") {
-          sync_migrate_ = false;
-
-          if (args.size() == 6) {
-            return {Status::RedisParseErr, "Async migration does not support timeout"};
-          }
-        } else if (sync_flag == "sync") {
-          sync_migrate_ = true;
-
-          if (args.size() == 6) {
-            auto parse_result = ParseInt<int>(args[5], 10);
-            if (!parse_result) {
-              return {Status::RedisParseErr, "timeout is not an integer or out of range"};
-            }
-            if (*parse_result < 0) {
-              return {Status::RedisParseErr, errTimeoutIsNegative};
-            }
-            sync_migrate_timeout_ = *parse_result;
+      if (args.size() == 4) {
+        std::string slot_str = args[2];
+        if (slot_str.back() == ',') slot_str.pop_back();
+        auto slot_list = util::Split(slot_str, ",");
+        if (slot_list.size() > 1) {
+          slot_ = -1;
+          for (auto slot : slot_list) {
+            int temp = GET_OR_RET(ParseInt<int64_t>(slot, 10));
+            slots_.push_back(temp);
           }
         } else {
-          return {Status::RedisParseErr, "Invalid sync flag"};
+          slot_ = GET_OR_RET(ParseInt<int64_t>(slot_str, 10));
+          slots_.push_back(slot_);
         }
+        dst_node_id_ = args[3];
+        return Status::OK();
+      } else if (args.size() == 5) {
+        slot_ = -1;
+        int64_t start = GET_OR_RET(ParseInt<int64_t>(args[2], 10));
+        int64_t end = GET_OR_RET(ParseInt<int64_t>(args[3], 10));
+        for (int64_t i = start; i < end; i++) {
+          slots_.push_back(i);
+        }
+        dst_node_id_ = args[4];
+        return Status::OK();
+      } else {
+        return {Status::RedisParseErr, errWrongNumOfArguments};
       }
-      return Status::OK();
     }
 
     if (subcommand_ == "setnodes" && args_.size() >= 4) {
@@ -252,15 +284,14 @@ class CommandClusterX : public Commander {
       int64_t v = svr->cluster->GetVersion();
       *output = redis::BulkString(std::to_string(v));
     } else if (subcommand_ == "migrate") {
-      if (sync_migrate_) {
-        sync_migrate_ctx_ = std::make_unique<SyncMigrateContext>(svr, conn, sync_migrate_timeout_);
+      Status s;
+      if (!svr->slot_migrator->IsBatched()) {
+        s = svr->cluster->MigrateSlot(static_cast<int>(slot_), dst_node_id_);
+      } else {
+        s = svr->cluster->MigrateSlots(slots_, dst_node_id_);
       }
 
-      Status s = svr->cluster->MigrateSlot(static_cast<int>(slot_), dst_node_id_, sync_migrate_ctx_.get());
       if (s.IsOK()) {
-        if (sync_migrate_) {
-          return {Status::BlockingCmd};
-        }
         *output = redis::SimpleString("OK");
       } else {
         *output = redis::Error(s.Msg());
@@ -280,6 +311,7 @@ class CommandClusterX : public Commander {
   std::string dst_node_id_;
   int64_t set_version_ = 0;
   int64_t slot_ = -1;
+  std::vector<int> slots_;
   std::vector<SlotRange> slot_ranges_;
   bool force_ = false;
 
@@ -288,7 +320,67 @@ class CommandClusterX : public Commander {
   std::unique_ptr<SyncMigrateContext> sync_migrate_ctx_ = nullptr;
 };
 
+class CommandIngest : public Commander {
+ public:
+  Status Parse(const std::vector<std::string> &args) override {
+    remote_or_local_ = args[1];
+    column_family_name_ = args[2];
+    files_str_ = args[3];
+    server_id_ = args[4];
+    ingestion_mode_ = args[5];
+    if (args.size() > 6) {
+      auto level_str = args[6];
+      auto temp = GET_OR_RET(ParseInt<int64_t>(level_str, 10));
+      target_level_ = temp;
+    }
+    if (remote_or_local_ != "local" && remote_or_local_ != "remote") {
+      return {Status::NotOK, "Failed cmd format, it should be like: ingest remote|local file1,file2,file3"};
+    }
+    return Status::OK();
+  }
+  Status Execute(Server *svr, Connection *conn, std::string *output) override {
+    LOG(INFO) << "Receive Ingest command:" << files_str_;
+    //    LOG(INFO) << "Start Ingesting files:" << files_str_;
+    std::string target_dir = svr->GetConfig()->backup_sync_dir;
+    std::vector<std::string> files = util::Split(files_str_, ",");
+    LOG(INFO) << "Ingesting files from: " << remote_or_local_;
+
+    if (remote_or_local_ == "local") {
+      std::vector<std::string> ingest_files;
+      std::string file_str;
+      for (auto file : files) {
+        auto abs_path = file;
+        if (file[0] != '/') {
+          abs_path = svr->GetConfig()->global_migration_sync_dir + "/" + svr->cluster->GetMyId() + "/" + file;
+        }
+        ingest_files.push_back(abs_path);
+        file_str += ingest_files.back() + ",";
+      }
+      file_str.pop_back();
+      LOG(INFO) << "Ingesting files: " << file_str;
+      bool fast_ingest = ingestion_mode_ == "fast";
+      auto s = svr->cluster->IngestFiles(column_family_name_, ingest_files, fast_ingest, target_level_);
+      if (!s.IsOK()) {
+        return s;
+      }
+
+      *output = redis::SimpleString("OK");
+      return Status::OK();
+    }
+    return {Status::NotOK, "Execution failed"};
+  }
+
+ private:
+  std::string remote_or_local_;
+  std::string files_str_;
+  std::string column_family_name_;
+  std::string server_id_;
+  std::string ingestion_mode_;
+  int target_level_;
+};
+
 REDIS_REGISTER_COMMANDS(MakeCmdAttr<CommandCluster>("cluster", -2, "cluster no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "cluster no-script", 0, 0, 0), )
+                        MakeCmdAttr<CommandClusterX>("clusterx", -2, "cluster no-script", 0, 0, 0),
+                        MakeCmdAttr<CommandIngest>("sst_ingest", 6, "cluster no-script", 0, 0, 0), )
 
 }  // namespace redis
