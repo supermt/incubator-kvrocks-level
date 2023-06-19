@@ -307,6 +307,7 @@ Status Cluster::MigrateSlot(int slot, const std::string &dst_node_id, SyncMigrat
 
   const auto &dst = nodes_[dst_node_id];
   Status s = svr_->slot_migrator->PerformSlotMigration(dst_node_id, dst->host, dst->port, slot, blocking_ctx);
+  if (!s.IsOK())
   return s;
 }
 

@@ -288,7 +288,7 @@ class CommandClusterX : public Commander {
       std::cout << "Is batched? " << svr->slot_migrator->IsBatched()
                 << ", migration name: " << svr->slot_migrator->GetName() << std::endl;
       if (!svr->slot_migrator->IsBatched()) {
-        s = svr->cluster->MigrateSlot(static_cast<int>(slot_), dst_node_id_);
+        s = svr->cluster->MigrateSlot(static_cast<int>(slot_), dst_node_id_, sync_migrate_ctx_.get());
       } else {
         s = svr->cluster->MigrateSlots(slots_, dst_node_id_);
       }
