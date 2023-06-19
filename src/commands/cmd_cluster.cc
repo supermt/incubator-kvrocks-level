@@ -135,42 +135,19 @@ class CommandClusterX : public Commander {
     //
     //      dst_node_id_ = args[3];
     //
-    //      if (args.size() >= 5) {
-    //        auto sync_flag = util::ToLower(args[4]);
-    //        if (sync_flag == "async") {
-    //          sync_migrate_ = false;
-    //
-    //          if (args.size() == 6) {
-    //            return {Status::RedisParseErr, "Async migration does not support timeout"};
-    //          }
-    //        } else if (sync_flag == "sync") {
-    //          sync_migrate_ = true;
-    //
-    //          if (args.size() == 6) {
-    //            auto parse_result = ParseInt<int>(args[5], 10);
-    //            if (!parse_result) {
-    //              return {Status::RedisParseErr, "timeout is not an integer or out of range"};
-    //            }
-    //            if (*parse_result < 0) {
-    //              return {Status::RedisParseErr, errTimeoutIsNegative};
-    //            }
-    //            sync_migrate_timeout_ = *parse_result;
-    //          }
-    //        } else {
-    //          return {Status::RedisParseErr, "Invalid sync flag"};
-    //        }
-    //      }
+
     //      return Status::OK();
     //    }
 
     if (subcommand_ == "migrate") {
+      if (args.size() < 4 || args.size() > 6) return {Status::RedisParseErr, errWrongNumOfArguments};
       if (args.size() == 4) {
         std::string slot_str = args[2];
         if (slot_str.back() == ',') slot_str.pop_back();
         auto slot_list = util::Split(slot_str, ",");
         if (slot_list.size() > 1) {
           slot_ = -1;
-          for (auto slot : slot_list) {
+          for (const auto &slot : slot_list) {
             int temp = GET_OR_RET(ParseInt<int64_t>(slot, 10));
             slots_.push_back(temp);
           }
@@ -180,17 +157,31 @@ class CommandClusterX : public Commander {
         }
         dst_node_id_ = args[3];
         return Status::OK();
-      } else if (args.size() == 5) {
-        slot_ = -1;
-        int64_t start = GET_OR_RET(ParseInt<int64_t>(args[2], 10));
-        int64_t end = GET_OR_RET(ParseInt<int64_t>(args[3], 10));
-        for (int64_t i = start; i < end; i++) {
-          slots_.push_back(i);
+      }
+      if (args.size() >= 5) {
+        auto sync_flag = util::ToLower(args[4]);
+        if (sync_flag == "async") {
+          sync_migrate_ = false;
+
+          if (args.size() == 6) {
+            return {Status::RedisParseErr, "Async migration does not support timeout"};
+          }
+        } else if (sync_flag == "sync") {
+          sync_migrate_ = true;
+
+          if (args.size() == 6) {
+            auto parse_result = ParseInt<int>(args[5], 10);
+            if (!parse_result) {
+              return {Status::RedisParseErr, "timeout is not an integer or out of range"};
+            }
+            if (*parse_result < 0) {
+              return {Status::RedisParseErr, errTimeoutIsNegative};
+            }
+            sync_migrate_timeout_ = *parse_result;
+          }
+        } else {
+          return {Status::RedisParseErr, "Invalid sync flag"};
         }
-        dst_node_id_ = args[4];
-        return Status::OK();
-      } else {
-        return {Status::RedisParseErr, errWrongNumOfArguments};
       }
     }
 
@@ -317,7 +308,7 @@ class CommandClusterX : public Commander {
   std::vector<SlotRange> slot_ranges_;
   bool force_ = false;
 
-  bool sync_migrate_ = false;
+  bool sync_migrate_ = true;
   int sync_migrate_timeout_ = 0;
   std::unique_ptr<SyncMigrateContext> sync_migrate_ctx_ = nullptr;
 };
