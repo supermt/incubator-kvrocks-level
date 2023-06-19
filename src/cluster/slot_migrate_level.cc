@@ -85,6 +85,7 @@ Status LevelMigrator::sendSnapshot() {
   }
 
   if (meta_compact_sst.empty() || subkey_compact_sst.empty()) {
+    storage_->GetDB()->ContinueBackgroundWork();
     return {Status::NotOK, "No SSTs can be found."};
   }
 
@@ -138,6 +139,7 @@ Status LevelMigrator::sendSnapshot() {
   std::string file_copy_output;
   s = util::CheckCmdOutput(migration_cmds, &file_copy_output);
   if (!s.IsOK()) {
+    storage_->GetDB()->ContinueBackgroundWork();
     return {Status::NotOK, "Failed on copy file: " + file_copy_output};
   }
 
@@ -166,6 +168,7 @@ Status LevelMigrator::sendSnapshot() {
     LOG(INFO) << level_ingest_cmd;
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
+      storage_->GetDB()->ContinueBackgroundWork();
       return s;
     }
   }
@@ -188,6 +191,7 @@ Status LevelMigrator::sendSnapshot() {
     LOG(INFO) << level_ingest_cmd;
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
+      storage_->GetDB()->ContinueBackgroundWork();
       return s;
     }
   }
