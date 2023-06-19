@@ -159,7 +159,7 @@ Status Server::Start() {
       return s.Prefixed("failed to create migration thread");
     }
 
-    slot_import = std::make_unique<SlotImport>(this);
+    //    slot_import = std::make_unique<SlotImport>(this);
   }
 
   for (const auto &worker : worker_threads_) {

@@ -43,9 +43,9 @@ bool MetadataFilter::Filter(int level, const Slice &key, const Slice &value, std
                  << ", namespace: " << ns << ", key: " << user_key << ", err: " << s.ToString();
     return false;
   }
-  DLOG(INFO) << "[compact_filter/metadata] "
-             << "namespace: " << ns << ", key: " << user_key
-             << ", result: " << (metadata.Expired() ? "deleted" : "reserved");
+//  DLOG(INFO) << "[compact_filter/metadata] "
+//             << "namespace: " << ns << ", key: " << user_key
+//             << ", result: " << (metadata.Expired() ? "deleted" : "reserved");
   return metadata.Expired();
 }
 

@@ -67,6 +67,7 @@ Status BatchedSlotMigrator::setImportStatusOnDstNode(int sock_fd, int status) {
   for (auto slot : migrating_slots_) {
     migration_job_->slot_id = slot;
     migrating_slot_ = slot;
+    //    LOG(INFO) << "Setting import status in slot: " << slot;
     s = SlotMigrator::setImportStatusOnDstNode(sock_fd, status);
     if (!s.IsOK()) {
       return s;

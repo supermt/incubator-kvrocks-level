@@ -48,7 +48,8 @@ class ClusterNode {
   std::string slots_info;
   std::bitset<kClusterSlots> slots;
   std::vector<std::string> replicas;
-  int importing_slot = -1;
+  //  int importing_slot = -1;
+  std::set<int> importing_slots;
 };
 
 struct SlotInfo {

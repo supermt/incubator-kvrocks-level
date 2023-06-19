@@ -222,8 +222,9 @@ class Server {
   std::unique_ptr<Cluster> cluster;
   static inline std::atomic<int> unix_time = 0;
   std::unique_ptr<SlotMigrator> slot_migrator;
-  std::unique_ptr<SlotImport> slot_import;
+//  std::unique_ptr<SlotImport> slot_import;
   // Modified by Jinghuan {id, count}
+  std::map<int, std::unique_ptr<SlotImport>> slot_import_map;
   std::map<int16_t, uint64_t> slot_hotness_map_;
   std::string GetHotnessJson();
 

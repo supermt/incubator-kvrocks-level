@@ -185,8 +185,8 @@ Status LevelMigrator::sendSnapshot() {
     ingestion_command += (" " + subkey_file_str);
     ingestion_command += (" " + dst_node_);
     auto level_ingest_cmd = target_server_pre + ingestion_command + " fast " + std::to_string(subkey_level.first);
-    LOG(INFO) << ingestion_command;
-    s = util::CheckCmdOutput(level_ingest_cmd, &ingestion_command);
+    LOG(INFO) << level_ingest_cmd;
+    s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
       return s;
     }

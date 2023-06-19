@@ -321,15 +321,20 @@ Status Cluster::ImportSlot(redis::Connection *conn, int slot, int state) {
 
   switch (state) {
     case kImportStart:
-      if (!svr_->slot_import->Start(conn->GetFD(), slot)) {
+      if (svr_->slot_import_map.count(slot) == 0) {
+        svr_->slot_import_map.emplace(slot, std::make_unique<SlotImport>(svr_));
+      }
+
+      if (!svr_->slot_import_map[slot]->Start(conn->GetFD(), slot)) {
         return {Status::NotOK, fmt::format("Can't start importing slot {}", slot)};
       }
 
       // Set link importing
       conn->SetImporting();
-      myself_->importing_slot = slot;
+      myself_->importing_slots.emplace(slot);
+
       // Set link error callback
-      conn->close_cb = [object_ptr = svr_->slot_import.get(), capture_fd = conn->GetFD()](int fd) {
+      conn->close_cb = [object_ptr = svr_->slot_import_map[slot].get(), capture_fd = conn->GetFD()](int fd) {
         object_ptr->StopForLinkError(capture_fd);
       };
       // Stop forbidding writing slot to accept write commands
@@ -337,21 +342,23 @@ Status Cluster::ImportSlot(redis::Connection *conn, int slot, int state) {
       LOG(INFO) << "[import] Start importing slot " << slot;
       break;
     case kImportSuccess:
-      if (!svr_->slot_import->Success(slot)) {
+      if (!svr_->slot_import_map[slot]->Success(slot)) {
         LOG(ERROR) << "[import] Failed to set slot importing success, maybe slot is wrong"
-                   << ", received slot: " << slot << ", current slot: " << svr_->slot_import->GetSlot();
+                   << ", received slot: " << slot << ", current slot: " << svr_->slot_import_map[slot]->GetSlot();
         return {Status::NotOK, fmt::format("Failed to set slot {} importing success", slot)};
       }
-
+      svr_->slot_import_map.erase(slot);
+      myself_->importing_slots.erase(slot);
       LOG(INFO) << "[import] Succeed to import slot " << slot;
       break;
     case kImportFailed:
-      if (!svr_->slot_import->Fail(slot)) {
+      if (!svr_->slot_import_map[slot]->Fail(slot)) {
         LOG(ERROR) << "[import] Failed to set slot importing error, maybe slot is wrong"
-                   << ", received slot: " << slot << ", current slot: " << svr_->slot_import->GetSlot();
+                   << ", received slot: " << slot << ", current slot: " << svr_->slot_import_map[slot]->GetSlot();
         return {Status::NotOK, fmt::format("Failed to set slot {} importing error", slot)};
       }
-
+      svr_->slot_import_map.erase(slot);
+      myself_->importing_slots.erase(slot);
       LOG(INFO) << "[import] Failed to import slot " << slot;
       break;
     default:
@@ -403,8 +410,10 @@ Status Cluster::GetClusterInfo(std::string *cluster_infos) {
 
     // Get importing status
     std::string import_infos;
-    svr_->slot_import->GetImportInfo(&import_infos);
-    *cluster_infos += import_infos;
+    for (auto &[key, value] : svr_->slot_import_map) {
+      value->GetImportInfo(&import_infos);
+      *cluster_infos += import_infos;
+    }
   }
 
   return Status::OK();
@@ -784,7 +793,7 @@ Status Cluster::CanExecByMySelf(const redis::CommandAttributes *attributes, cons
     return Status::OK();  // I'm serving this slot
   }
 
-  if (myself_ && myself_->importing_slot == slot && conn->IsImporting()) {
+  if (myself_ && myself_->importing_slots.count(slot) > 0 && conn->IsImporting()) {
     // While data migrating, the topology of the destination node has not been changed.
     // The destination node has to serve the requests from the migrating slot,
     // although the slot is not belong to itself. Therefore, we record the importing slot

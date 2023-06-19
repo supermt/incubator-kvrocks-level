@@ -285,6 +285,8 @@ class CommandClusterX : public Commander {
       *output = redis::BulkString(std::to_string(v));
     } else if (subcommand_ == "migrate") {
       Status s;
+      std::cout << "Is batched? " << svr->slot_migrator->IsBatched()
+                << ", migration name: " << svr->slot_migrator->GetName() << std::endl;
       if (!svr->slot_migrator->IsBatched()) {
         s = svr->cluster->MigrateSlot(static_cast<int>(slot_), dst_node_id_);
       } else {

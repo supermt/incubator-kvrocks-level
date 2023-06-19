@@ -74,7 +74,7 @@ void Connection::Close() {
 void Connection::Detach() { owner_->DetachConnection(this); }
 
 void Connection::OnRead(struct bufferevent *bev) {
-  DLOG(INFO) << "[connection] on read: " << bufferevent_getfd(bev);
+//  DLOG(INFO) << "[connection] on read: " << bufferevent_getfd(bev);
 
   SetLastInteraction();
   auto s = req_.Tokenize(Input());
@@ -110,7 +110,7 @@ void Connection::OnEvent(bufferevent *bev, int16_t events) {
   }
 
   if (events & BEV_EVENT_EOF) {
-    DLOG(INFO) << "[connection] Going to remove the client: " << GetAddr() << ", while closed by client";
+//    DLOG(INFO) << "[connection] Going to remove the client: " << GetAddr() << ", while closed by client";
     Close();
     return;
   }

@@ -134,6 +134,8 @@ Config::Config() {
       {"dir", true, new StringField(&dir, "/tmp/kvrocks")},
       {"backup-dir", false, new StringField(&backup_dir, "")},
       {"log-dir", true, new StringField(&log_dir, "")},
+      // Modified by Jinghuan
+      {"migrate-method", false, new IntField(&migrate_method, kSeekAndInsert, kSeekAndInsert, kInvalidMigration)},
       {"migration_user", true, new StringField(&migration_user, "jinghua2")},
       {"migration_agent_location", true,
        new StringField(&migration_agent_location,
