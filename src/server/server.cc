@@ -1772,7 +1772,7 @@ std::string Server::GetHotnessJson() {
   output.reserve(8 * 16384);
   output.append("{");
   for (auto [key, value] : slot_hotness_map_) {
-    if (value != 0) output.append(fmt::format(R"("{}":{},)", key, value));
+    output.append(fmt::format(R"("{}":{},)", key, value));
   }
   if (output.size() > 1) output.pop_back();
   output.append("}");

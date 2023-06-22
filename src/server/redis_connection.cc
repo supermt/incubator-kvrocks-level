@@ -99,7 +99,7 @@ void Connection::OnWrite(struct bufferevent *bev) {
 
 void Connection::OnEvent(bufferevent *bev, int16_t events) {
   if (events & BEV_EVENT_ERROR) {
-    if (evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()) != "Connection reset by peer") {
+    if (EVUTIL_SOCKET_ERROR() != ECONNRESET) {
       LOG(ERROR) << "[connection] Going to remove the client: " << GetAddr()
                  << ", while encounter error: " << evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR())
 #ifdef ENABLE_OPENSSL
