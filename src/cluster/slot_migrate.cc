@@ -306,7 +306,6 @@ Status SlotMigrator::startMigration() {
 
   return Status::OK();
 }
-
 Status SlotMigrator::sendSnapshot() {
   uint64_t migrated_key_cnt = 0;
   uint64_t expired_key_cnt = 0;
@@ -328,11 +327,7 @@ Status SlotMigrator::sendSnapshot() {
   LOG(INFO) << "[migrate] Iterate keys of slot, key's prefix: " << prefix;
 
   // Seek to the beginning of keys start with 'prefix' and iterate all these keys
-  for (iter->Seek(prefix); iter->Valid();) {
-    auto start = util::GetTimeStampUS();
-    iter->Next();
-    auto end = util::GetTimeStampUS();
-    seek_time_us_ += (end - start);
+  for (iter->Seek(prefix); iter->Valid(); iter->Next()) {
     // The migrating task has to be stopped, if server role is changed from master to slave
     // or flush command (flushdb or flushall) is executed
     if (stop_migration_) {
@@ -355,7 +350,7 @@ Status SlotMigrator::sendSnapshot() {
     }
 
     if (*result == KeyMigrationResult::kMigrated) {
-      //      LOG(INFO) << "[migrate] The key " << user_key << " successfully migrated";
+      LOG(INFO) << "[migrate] The key " << user_key << " successfully migrated";
       migrated_key_cnt++;
     } else if (*result == KeyMigrationResult::kExpired) {
       LOG(INFO) << "[migrate] The key " << user_key << " is expired";
@@ -535,13 +530,20 @@ Status SlotMigrator::checkMultipleResponses(int sock_fd, int total) {
     if (evbuffer_read(evbuf.get(), sock_fd, -1) <= 0) {
       if (errno == EAGAIN) {
         int retry = 0;
-        while (retry < 10 && evbuffer_read(evbuf.get(), sock_fd, -1) <= 0) {
+        while (retry < 10) {
           usleep(10);
+          auto readed = evbuffer_read(evbuf.get(), sock_fd, -1);
+          if (readed > 0) {
+            break;
+          }
+          LOG(INFO) << "Network overflow, retry" << std::endl;
           resource_waiting_time += 10;
           retry++;
         }
+        if (retry >= 10) return {Status::NotOK, fmt::format("failed to read response: {}", strerror(errno))};
+      } else {
+        return {Status::NotOK, fmt::format("failed to read response: {}", strerror(errno))};
       }
-      return {Status::NotOK, fmt::format("failed to read response: {}", strerror(errno))};
     }
 
     // Parse response data in event buffer
@@ -694,9 +696,9 @@ Status SlotMigrator::migrateComplexKey(const rocksdb::Slice &key, const Metadata
   InternalKey(slot_key, "", metadata.version, true).Encode(&prefix_subkey);
   int item_count = 0;
 
-  for (iter->Seek(prefix_subkey); iter->Valid();) {
+  for (iter->Seek(prefix_subkey); iter->Valid();iter->Next()) {
     auto start = util::GetTimeStampUS();
-    iter->Next();
+//    iter->Next();
     auto end = util::GetTimeStampUS();
     seek_time_us_ += (end - start);
     if (stop_migration_) {
