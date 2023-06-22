@@ -199,7 +199,8 @@ class SlotMigrator : public redis::Database {
   // modified by Jinghuan
   const bool batched_;
   uint64_t seek_time_us_ = 0;
-  uint64_t send_cmd_time_ = 0;
+  uint64_t cmd_response_time = 0;
+  uint64_t resource_waiting_time = 0;
   std::vector<int> migrating_slots_;
 };
 

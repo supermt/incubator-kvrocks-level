@@ -74,7 +74,7 @@ void Connection::Close() {
 void Connection::Detach() { owner_->DetachConnection(this); }
 
 void Connection::OnRead(struct bufferevent *bev) {
-//  DLOG(INFO) << "[connection] on read: " << bufferevent_getfd(bev);
+  //  DLOG(INFO) << "[connection] on read: " << bufferevent_getfd(bev);
 
   SetLastInteraction();
   auto s = req_.Tokenize(Input());
@@ -99,18 +99,21 @@ void Connection::OnWrite(struct bufferevent *bev) {
 
 void Connection::OnEvent(bufferevent *bev, int16_t events) {
   if (events & BEV_EVENT_ERROR) {
-    LOG(ERROR) << "[connection] Going to remove the client: " << GetAddr()
-               << ", while encounter error: " << evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR())
+    if (evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()) != "Connection reset by peer") {
+      LOG(ERROR) << "[connection] Going to remove the client: " << GetAddr()
+                 << ", while encounter error: " << evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR())
 #ifdef ENABLE_OPENSSL
-               << ", SSL Error: " << SSLError(bufferevent_get_openssl_error(bev))  // NOLINT
+                 << ", SSL Error: " << SSLError(bufferevent_get_openssl_error(bev))  // NOLINT
 #endif
-        ;  // NOLINT
+          ;                                                                          // NOLINT
+    }
+
     Close();
     return;
   }
 
   if (events & BEV_EVENT_EOF) {
-//    DLOG(INFO) << "[connection] Going to remove the client: " << GetAddr() << ", while closed by client";
+    //    DLOG(INFO) << "[connection] Going to remove the client: " << GetAddr() << ", while closed by client";
     Close();
     return;
   }

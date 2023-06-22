@@ -334,9 +334,9 @@ Status Cluster::ImportSlot(redis::Connection *conn, int slot, int state) {
       myself_->importing_slots.emplace(slot);
 
       // Set link error callback
-      conn->close_cb = [object_ptr = svr_->slot_import_map[slot].get(), capture_fd = conn->GetFD()](int fd) {
-        object_ptr->StopForLinkError(capture_fd);
-      };
+      //      conn->close_cb = [object_ptr = svr_->slot_import_map[slot].get(), capture_fd = conn->GetFD()](int fd) {
+      //        object_ptr->StopForLinkError(capture_fd);
+      //      };
       // Stop forbidding writing slot to accept write commands
       if (slot == svr_->slot_migrator->GetForbiddenSlot()) svr_->slot_migrator->ReleaseForbiddenSlot();
       LOG(INFO) << "[import] Start importing slot " << slot;

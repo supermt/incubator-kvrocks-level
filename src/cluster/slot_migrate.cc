@@ -188,6 +188,8 @@ void SlotMigrator::runMigrationProcess() {
 
     switch (current_stage_) {
       case SlotMigrationStage::kStart: {
+        seek_time_us_ = 0;
+        cmd_response_time = 0;
         auto s = startMigration();
         if (s.IsOK()) {
           LOG(INFO) << "[migrate] Succeed to start migrating slot " << migrating_slot_;
@@ -200,7 +202,14 @@ void SlotMigrator::runMigrationProcess() {
         break;
       }
       case SlotMigrationStage::kSnapshot: {
+        auto start = util::GetTimeStampUS();
         auto s = sendSnapshot();
+        auto end = util::GetTimeStampUS();
+
+        LOG(INFO) << "Finished sending snapshot, time taken(us): " << end - start
+                  << ", seek time taken(us): " << seek_time_us_
+                  << ", network response time taken(us): " << cmd_response_time;
+
         if (s.IsOK()) {
           current_stage_ = SlotMigrationStage::kWAL;
         } else {
@@ -319,7 +328,11 @@ Status SlotMigrator::sendSnapshot() {
   LOG(INFO) << "[migrate] Iterate keys of slot, key's prefix: " << prefix;
 
   // Seek to the beginning of keys start with 'prefix' and iterate all these keys
-  for (iter->Seek(prefix); iter->Valid(); iter->Next()) {
+  for (iter->Seek(prefix); iter->Valid();) {
+    auto start = util::GetTimeStampUS();
+    iter->Next();
+    auto end = util::GetTimeStampUS();
+    seek_time_us_ += (start - end);
     // The migrating task has to be stopped, if server role is changed from master to slave
     // or flush command (flushdb or flushall) is executed
     if (stop_migration_) {
@@ -342,7 +355,7 @@ Status SlotMigrator::sendSnapshot() {
     }
 
     if (*result == KeyMigrationResult::kMigrated) {
-      LOG(INFO) << "[migrate] The key " << user_key << " successfully migrated";
+      //      LOG(INFO) << "[migrate] The key " << user_key << " successfully migrated";
       migrated_key_cnt++;
     } else if (*result == KeyMigrationResult::kExpired) {
       LOG(INFO) << "[migrate] The key " << user_key << " is expired";
@@ -520,6 +533,14 @@ Status SlotMigrator::checkMultipleResponses(int sock_fd, int total) {
   while (true) {
     // Read response data from socket buffer to the event buffer
     if (evbuffer_read(evbuf.get(), sock_fd, -1) <= 0) {
+      if (errno == EAGAIN) {
+        int retry = 0;
+        while (retry < 10 && evbuffer_read(evbuf.get(), sock_fd, -1) <= 0) {
+          usleep(10);
+          resource_waiting_time += 10;
+          retry++;
+        }
+      }
       return {Status::NotOK, fmt::format("failed to read response: {}", strerror(errno))};
     }
 
@@ -531,7 +552,7 @@ Status SlotMigrator::checkMultipleResponses(int sock_fd, int total) {
         case ParserState::ArrayLen: {
           UniqueEvbufReadln line(evbuf.get(), EVBUFFER_EOL_CRLF_STRICT);
           if (!line) {
-            LOG(INFO) << "[migrate] Event buffer is empty, read socket again";
+            //            LOG(INFO) << "[migrate] Event buffer is empty, read socket again";
             run = false;
             break;
           }
@@ -673,7 +694,11 @@ Status SlotMigrator::migrateComplexKey(const rocksdb::Slice &key, const Metadata
   InternalKey(slot_key, "", metadata.version, true).Encode(&prefix_subkey);
   int item_count = 0;
 
-  for (iter->Seek(prefix_subkey); iter->Valid(); iter->Next()) {
+  for (iter->Seek(prefix_subkey); iter->Valid();) {
+    auto start = util::GetTimeStampUS();
+    iter->Next();
+    auto end = util::GetTimeStampUS();
+    seek_time_us_ += (start - end);
     if (stop_migration_) {
       return {Status::NotOK, errMigrationTaskCanceled};
     }
@@ -877,6 +902,7 @@ Status SlotMigrator::sendCmdsPipelineIfNeed(std::string *commands, bool need) {
 
   applyMigrationSpeedLimit();
 
+  auto start = util::GetTimeStampUS();
   auto s = util::SockSend(*dst_fd_, *commands);
   if (!s.IsOK()) {
     return s.Prefixed("failed to write data to a socket");
@@ -889,6 +915,8 @@ Status SlotMigrator::sendCmdsPipelineIfNeed(std::string *commands, bool need) {
     return s.Prefixed("wrong response from the destination node");
   }
 
+  auto end = util::GetTimeStampUS();
+  cmd_response_time += (start - end);
   // Clear commands and running pipeline
   commands->clear();
   current_pipeline_size_ = 0;
@@ -1119,4 +1147,3 @@ Status SlotMigrator::MigrateStart(Server *svr, const std::string &node_id, const
   return {Status::NotOK, "Non-batched method"};
 }
 Status SlotMigrator::SetMigrationSlots(std::vector<int> &target_slots) { return {Status::NotOK, "Non-batched method"}; }
-
