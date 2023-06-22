@@ -350,7 +350,7 @@ Status SlotMigrator::sendSnapshot() {
     }
 
     if (*result == KeyMigrationResult::kMigrated) {
-      if (migrated_key_cnt % 1000) {
+      if (migrated_key_cnt % 1000 == 0) {
         LOG(INFO) << "[migrate] " << migrated_key_cnt << " keys has been migrated, current key is:" << user_key;
       }
       migrated_key_cnt++;
