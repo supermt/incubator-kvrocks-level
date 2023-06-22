@@ -332,7 +332,7 @@ Status SlotMigrator::sendSnapshot() {
     auto start = util::GetTimeStampUS();
     iter->Next();
     auto end = util::GetTimeStampUS();
-    seek_time_us_ += (start - end);
+    seek_time_us_ += (end - start);
     // The migrating task has to be stopped, if server role is changed from master to slave
     // or flush command (flushdb or flushall) is executed
     if (stop_migration_) {
@@ -698,7 +698,7 @@ Status SlotMigrator::migrateComplexKey(const rocksdb::Slice &key, const Metadata
     auto start = util::GetTimeStampUS();
     iter->Next();
     auto end = util::GetTimeStampUS();
-    seek_time_us_ += (start - end);
+    seek_time_us_ += (end - start);
     if (stop_migration_) {
       return {Status::NotOK, errMigrationTaskCanceled};
     }
@@ -916,7 +916,7 @@ Status SlotMigrator::sendCmdsPipelineIfNeed(std::string *commands, bool need) {
   }
 
   auto end = util::GetTimeStampUS();
-  cmd_response_time += (start - end);
+  cmd_response_time += (end - start);
   // Clear commands and running pipeline
   commands->clear();
   current_pipeline_size_ = 0;
