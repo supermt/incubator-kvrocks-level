@@ -350,7 +350,9 @@ Status SlotMigrator::sendSnapshot() {
     }
 
     if (*result == KeyMigrationResult::kMigrated) {
-      LOG(INFO) << "[migrate] The key " << user_key << " successfully migrated";
+      if (migrated_key_cnt % 1000) {
+        LOG(INFO) << "[migrate] " << migrated_key_cnt << " keys has been migrated, current key is:" << user_key;
+      }
       migrated_key_cnt++;
     } else if (*result == KeyMigrationResult::kExpired) {
       LOG(INFO) << "[migrate] The key " << user_key << " is expired";
@@ -696,9 +698,9 @@ Status SlotMigrator::migrateComplexKey(const rocksdb::Slice &key, const Metadata
   InternalKey(slot_key, "", metadata.version, true).Encode(&prefix_subkey);
   int item_count = 0;
 
-  for (iter->Seek(prefix_subkey); iter->Valid();iter->Next()) {
+  for (iter->Seek(prefix_subkey); iter->Valid(); iter->Next()) {
     auto start = util::GetTimeStampUS();
-//    iter->Next();
+    //    iter->Next();
     auto end = util::GetTimeStampUS();
     seek_time_us_ += (end - start);
     if (stop_migration_) {
