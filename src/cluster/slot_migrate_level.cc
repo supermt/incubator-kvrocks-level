@@ -129,7 +129,8 @@ Status LevelMigrator::sendSnapshot() {
   }
   source_ssts.pop_back();
   LOG(INFO) << "SST waiting for ingestion: " << source_ssts;
-  std::string source_space = db_path_abs + "/" + svr_->GetConfig()->db_dir;
+
+  std::string source_space = svr_->GetConfig()->db_dir;
   std::string target_space = svr_->GetConfig()->global_migration_sync_dir + "/" + dst_node_;
 
   std::string worthy_result;

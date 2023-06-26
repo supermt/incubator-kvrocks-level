@@ -25,6 +25,7 @@
 #include <strings.h>
 
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -349,6 +350,10 @@ void Config::initFieldCallback() {
   std::map<std::string, CallbackFn> callbacks = {
       {"dir",
        [this](Server *srv, const std::string &k, const std::string &v) -> Status {
+         if (dir[0] != '/') {
+           // Add prefix
+           dir = std::filesystem::current_path() / dir;
+         }
          db_dir = dir + "/db";
          {
            std::lock_guard<std::mutex> lg(this->backup_mu);
