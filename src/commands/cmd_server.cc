@@ -962,12 +962,19 @@ class CommandSlaveOf : public Commander {
 class CommandStats : public Commander {
  public:
   Status Execute(Server *svr, Connection *conn, std::string *output) override {
-    std::string stats_json = svr->GetRocksDBStatsJson();
+    std::string stats_json = svr->GetRocksOPStatsJson();
     *output = redis::BulkString(stats_json);
     return Status::OK();
   }
 };
-
+class CommandDBStats : public Commander {
+ public:
+  Status Execute(Server *svr, Connection *conn, std::string *output) override {
+    std::string db_stat = svr->GetRocksStatsString();
+    *output = redis::BulkString(db_stat);
+    return Status::OK();
+  }
+};
 class CommandHotness : public Commander {
  public:
   Status Execute(Server *svr, Connection *conn, std::string *output) override {
@@ -1009,6 +1016,7 @@ REDIS_REGISTER_COMMANDS(MakeCmdAttr<CommandAuth>("auth", 2, "read-only ok-loadin
                         MakeCmdAttr<CommandFlushBackup>("flushbackup", 1, "read-only no-script", 0, 0, 0),
                         MakeCmdAttr<CommandSlaveOf>("slaveof", 3, "read-only exclusive no-script", 0, 0, 0),
                         MakeCmdAttr<CommandStats>("stats", 1, "read-only", 0, 0, 0),
+                        MakeCmdAttr<CommandDBStats>("dbstats", 1, "read-only", 0, 0, 0),
                         MakeCmdAttr<CommandHotness>("hotness", 1, "read-only", 0, 0, 0), )
 
 }  // namespace redis

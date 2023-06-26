@@ -173,7 +173,9 @@ class Server {
   void GetCommandsStatsInfo(std::string *info);
   void GetClusterInfo(std::string *info);
   void GetInfo(const std::string &ns, const std::string &section, std::string *info);
-  std::string GetRocksDBStatsJson() const;
+//  std::string GetRocksDBStatsJson() const;
+  std::string GetRocksOPStatsJson() const;
+  std::string GetRocksStatsString() const;
   ReplState GetReplicationState();
 
   void PrepareRestoreDB();

@@ -1179,8 +1179,17 @@ void Server::GetInfo(const std::string &ns, const std::string &section, std::str
 
   *info = string_stream.str();
 }
+std::string Server::GetRocksStatsString() const {
+  std::string output = "";
+  if (storage != nullptr) {
+    storage->GetDB()->GetProperty("rocksdb.stats", &output);
+    output.shrink_to_fit();
+  }
 
-std::string Server::GetRocksDBStatsJson() const {
+  return output;
+}
+
+std::string Server::GetRocksOPStatsJson() const {
   jsoncons::json stats_json;
 
   auto stats = storage->GetDB()->GetDBOptions().statistics;
