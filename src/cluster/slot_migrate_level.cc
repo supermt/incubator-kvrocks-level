@@ -23,7 +23,7 @@ LevelMigrator::LevelMigrator(Server *svr, int migration_speed, int pipeline_size
 
 Status LevelMigrator::sendSnapshot() {
   auto start = util::GetTimeStampUS();
-  rocksdb::CancelAllBackgroundWork(storage_->GetDB(), false);  // wait for current compaction to finish
+  rocksdb::CancelAllBackgroundWork(storage_->GetDB(), true);  // wait for current compaction to finish
   auto end = util::GetTimeStampUS();
   LOG(INFO) << "Wait BG flush job for: " << end - start << " us" << std::endl;
   storage_->GetDB()->PauseBackgroundWork();
@@ -85,7 +85,6 @@ Status LevelMigrator::sendSnapshot() {
   }
 
   if (meta_compact_sst.empty() || subkey_compact_sst.empty()) {
-    storage_->GetDB()->ContinueBackgroundWork();
     LOG(ERROR) << "No SSTs are found";
     return {Status::NotOK, "No SSTs can be found."};
   }
@@ -139,6 +138,7 @@ Status LevelMigrator::sendSnapshot() {
   auto s = util::CheckCmdOutput(mkdir_remote_cmd, &worthy_result);
   LOG(INFO) << "command: " << mkdir_remote_cmd;
   LOG(INFO) << worthy_result;
+  start = util::GetTimeStampUS();
   std::string migration_cmds = "ls " + source_ssts + " |xargs -n 1 basename| parallel -v -j8 rsync -raz --progress " +
                                source_space + "/{} " + remote_username + "@" + dst_ip_ + ":" + target_space + "/{}";
   LOG(INFO) << migration_cmds;
@@ -146,11 +146,12 @@ Status LevelMigrator::sendSnapshot() {
   std::string file_copy_output;
   s = util::CheckCmdOutput(migration_cmds, &file_copy_output);
   if (!s.IsOK()) {
-    storage_->GetDB()->ContinueBackgroundWork();
     LOG(ERROR) << "Failed on copying";
     return {Status::NotOK, "Failed on copy file: " + file_copy_output};
   }
 
+  end = util::GetTimeStampUS();
+  LOG(INFO) << "File copied, time taken(us): " << end - start;
   // Start ingestion
   std::string ingest_output;
   std::string target_server_pre = "redis-cli";
@@ -176,7 +177,6 @@ Status LevelMigrator::sendSnapshot() {
     LOG(INFO) << level_ingest_cmd;
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
-      storage_->GetDB()->ContinueBackgroundWork();
       LOG(ERROR) << "META Ingestion failed";
       return s;
     }
@@ -201,7 +201,6 @@ Status LevelMigrator::sendSnapshot() {
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
       LOG(ERROR) << "SUBKEY ingestion failed";
-      storage_->GetDB()->ContinueBackgroundWork();
       return s;
     }
   }
@@ -210,8 +209,6 @@ Status LevelMigrator::sendSnapshot() {
 
   LOG(INFO) << "Level ingestion finished, Time taken(us)" << end - start;
 
-  auto rocks = storage_->GetDB()->ContinueBackgroundWork();
-  if (!rocks.ok()) LOG(ERROR) << rocks.ToString();
   return Status::OK();
 }
 Status LevelMigrator::syncWal() { return Status::OK(); }
