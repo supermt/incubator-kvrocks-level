@@ -207,15 +207,15 @@ class CommandClusterX : public Commander {
 
     // CLUSTERX SETSLOT $SLOT_ID NODE $NODE_ID $VERSION
     if (subcommand_ == "setslot" && args_.size() == 6) {
-      Status s = CommanderHelper::ParseSlotRanges(args_[2], slot_ranges_);
-      if (!s.IsOK()) {
-        return s;
-      }
       slots_.clear();
+      Status s;
       auto slot_vec = util::Split(args_[2], ",");
-      if (slot_vec.size() == 0)
-        return s;
-      else {
+      if (slot_vec.size() == 0) {
+        s = CommanderHelper::ParseSlotRanges(args_[2], slot_ranges_);
+        if (!s.IsOK()) {
+          return s;
+        }
+      } else {
         for (const auto &slot_str : slot_vec) {
           slots_.push_back(std::stoi(slot_str));
         }
