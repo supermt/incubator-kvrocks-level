@@ -266,6 +266,8 @@ class LevelMigrator : public CompactAndMergeMigrator {
  protected:
   Status sendSnapshot() override;
   Status syncWal() override;
+  Status startIngestion(const std::map<int, std::vector<std::string>> &file_list, bool remote_or_local,
+                        const std::string &cf_name);
 
   std::string GetName() override { return "level-migration"; }
 

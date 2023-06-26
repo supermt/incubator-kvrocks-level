@@ -375,6 +375,6 @@ class CommandIngest : public Commander {
 
 REDIS_REGISTER_COMMANDS(MakeCmdAttr<CommandCluster>("cluster", -2, "cluster no-script", 0, 0, 0),
                         MakeCmdAttr<CommandClusterX>("clusterx", -2, "cluster no-script", 0, 0, 0),
-                        MakeCmdAttr<CommandIngest>("sst_ingest", 6, "cluster no-script", 0, 0, 0), )
+                        MakeCmdAttr<CommandIngest>("sst_ingest", 7, "cluster no-script", 0, 0, 0), )
 
 }  // namespace redis

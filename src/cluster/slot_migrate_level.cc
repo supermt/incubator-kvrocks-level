@@ -132,45 +132,78 @@ Status LevelMigrator::sendSnapshot() {
   std::string target_space = svr_->GetConfig()->global_migration_sync_dir + "/" + dst_node_;
 
   std::string worthy_result;
-  std::string mkdir_remote_cmd =
-      "ssh " + svr_->GetConfig()->migration_user + "@" + dst_ip_ + " mkdir -p -m 777 " + target_space;
-  auto s = util::CheckCmdOutput(mkdir_remote_cmd, &worthy_result);
-  LOG(INFO) << "command: " << mkdir_remote_cmd;
-  LOG(INFO) << worthy_result;
-  start = util::GetTimeStampUS();
-  std::string migration_cmds = "ls " + source_ssts + " |xargs -n 1 basename| parallel -v -j8 rsync -raz --progress " +
-                               source_space + "/{} " + remote_username + "@" + dst_ip_ + ":" + target_space + "/{}";
-  LOG(INFO) << migration_cmds;
+  Status s;
+  bool is_local = (dst_ip_ == "0.0.0.0" || dst_ip_ == "127.0.0.1");
+  if (!is_local) {
+    start = util::GetTimeStampUS();
+    std::string mkdir_remote_cmd =
+        "ssh " + svr_->GetConfig()->migration_user + "@" + dst_ip_ + " mkdir -p -m 777 " + target_space;
 
-  std::string file_copy_output;
-  s = util::CheckCmdOutput(migration_cmds, &file_copy_output);
-  if (!s.IsOK()) {
-    LOG(ERROR) << "Failed on copying";
-    storage_->GetDB()->ContinueBackgroundWork();
-    return {Status::NotOK, "Failed on copy file: " + file_copy_output};
+    s = util::CheckCmdOutput(mkdir_remote_cmd, &worthy_result);
+    LOG(INFO) << worthy_result;
+    if (!s.IsOK()) {
+      LOG(ERROR) << "Failed on copying";
+      storage_->GetDB()->ContinueBackgroundWork();
+      return {Status::NotOK, "Failed on create directory: " + worthy_result};
+    }
+    LOG(INFO) << "command: " << mkdir_remote_cmd;
+    LOG(INFO) << worthy_result;
+    std::string migration_cmds = "ls " + source_ssts + " |xargs -n 1 basename| parallel -v -j8 rsync -raz --progress " +
+                                 source_space + "/{} " + remote_username + "@" + dst_ip_ + ":" + target_space + "/{}";
+    LOG(INFO) << migration_cmds;
+
+    s = util::CheckCmdOutput(migration_cmds, &worthy_result);
+    LOG(INFO) << worthy_result;
+    if (!s.IsOK()) {
+      LOG(ERROR) << "Failed on copying";
+      storage_->GetDB()->ContinueBackgroundWork();
+      return {Status::NotOK, "Failed on copy file: " + worthy_result};
+    }
+
+    end = util::GetTimeStampUS();
+    LOG(INFO) << "File copied, time taken(us): " << end - start;
   }
 
-  end = util::GetTimeStampUS();
-  LOG(INFO) << "File copied, time taken(us): " << end - start;
+  s = startIngestion(meta_level_files, true, engine::kMetadataColumnFamilyName);
+  if (!s.IsOK()) {
+    storage_->GetDB()->ContinueBackgroundWork();
+    return s;
+  }
+  s = startIngestion(meta_level_files, true, engine::kSubkeyColumnFamilyName);
+  if (!s.IsOK()) {
+    storage_->GetDB()->ContinueBackgroundWork();
+    return s;
+  }
+
+  storage_->GetDB()->ContinueBackgroundWork();
+  return Status::OK();
+}
+Status LevelMigrator::syncWal() { return Status::OK(); }
+Status LevelMigrator::startIngestion(const std::map<int, std::vector<std::string>> &file_list, bool remote_or_local,
+                                     const std::string &cf_name) {
   // Start ingestion
   std::string ingest_output;
   std::string target_server_pre = "redis-cli";
   target_server_pre += (" -h " + dst_ip_);
   target_server_pre += (" -p " + std::to_string(dst_port_));
-
-  start = util::GetTimeStampUS();
-  for (const auto &meta_level : meta_level_files) {
+  Status s;
+  auto start = util::GetTimeStampUS();
+  for (const auto &meta_level : file_list) {
     std::string meta_file_str;
     if (meta_level.second.empty()) {
       continue;
     }
-    for (auto file : meta_level.second) {
-      meta_file_str += (file + ",");
+    for (const auto& file : meta_level.second) {
+      if (remote_or_local) {
+        meta_file_str += (svr_->GetConfig()->db_dir + "/" + file + ",");
+      } else {
+        meta_file_str += (file + ",");
+      }
     }
     meta_file_str.pop_back();
 
     std::string ingestion_command = " sst_ingest local";
-    ingestion_command += (" " + std::string(engine::kMetadataColumnFamilyName));
+    ingestion_command += (" " + cf_name);
     ingestion_command += (" " + meta_file_str);
     ingestion_command += (" " + dst_node_);
     auto level_ingest_cmd = target_server_pre + ingestion_command + " fast " + std::to_string(meta_level.first);
@@ -182,36 +215,9 @@ Status LevelMigrator::sendSnapshot() {
       return s;
     }
   }
-  for (const auto &subkey_level : subkey_level_files) {
-    std::string subkey_file_str;
-    if (subkey_level.second.empty()) {
-      continue;
-    }
 
-    for (auto file : subkey_level.second) {
-      subkey_file_str += (file + ",");
-    }
-    subkey_file_str.pop_back();
+  auto end = util::GetTimeStampUS();
 
-    std::string ingestion_command = " sst_ingest local";
-    ingestion_command += (" " + std::string(engine::kSubkeyColumnFamilyName));
-    ingestion_command += (" " + subkey_file_str);
-    ingestion_command += (" " + dst_node_);
-    auto level_ingest_cmd = target_server_pre + ingestion_command + " fast " + std::to_string(subkey_level.first);
-    LOG(INFO) << level_ingest_cmd;
-    s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
-    if (!s.IsOK()) {
-      LOG(ERROR) << "SUBKEY ingestion failed";
-      storage_->GetDB()->ContinueBackgroundWork();
-      return s;
-    }
-  }
-
-  end = util::GetTimeStampUS();
-
-  LOG(INFO) << "Level ingestion finished, Time taken(us)" << end - start;
-
-  storage_->GetDB()->ContinueBackgroundWork();
+  LOG(INFO) << "Level ingestion on column family " << cf_name << "finished, Time taken(us)" << end - start;
   return Status::OK();
 }
-Status LevelMigrator::syncWal() { return Status::OK(); }
