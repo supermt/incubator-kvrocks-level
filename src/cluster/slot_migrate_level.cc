@@ -119,7 +119,12 @@ Status LevelMigrator::sendSnapshot() {
   std::string source_ssts = "";
 
   for (const auto &fn : result_ssts) {
-    auto abs_name = db_path_abs + "/" + src_config->db_dir + fn + " ";
+    std::string abs_name;
+    if (src_config->db_dir[0] == '/') {
+      abs_name = src_config->db_dir + fn + " ";
+    } else {
+      abs_name = db_path_abs + "/" + src_config->db_dir + fn + " ";
+    }
     source_ssts += abs_name;
   }
   source_ssts.pop_back();
@@ -187,7 +192,7 @@ Status LevelMigrator::sendSnapshot() {
     subkey_file_str.pop_back();
 
     std::string ingestion_command = " CLUSTERX sst_ingest local";
-    ingestion_command += (" " + std::string(engine::kMetadataColumnFamilyName));
+    ingestion_command += (" " + std::string(engine::kSubkeyColumnFamilyName));
     ingestion_command += (" " + subkey_file_str);
     ingestion_command += (" " + dst_node_);
     auto level_ingest_cmd = target_server_pre + ingestion_command + " fast " + std::to_string(subkey_level.first);

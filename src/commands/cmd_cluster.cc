@@ -354,6 +354,7 @@ class CommandIngest : public Commander {
       bool fast_ingest = ingestion_mode_ == "fast";
       auto s = svr->cluster->IngestFiles(column_family_name_, ingest_files, fast_ingest, target_level_);
       if (!s.IsOK()) {
+        *output = redis::SimpleString("error: " + s.Msg());
         return s;
       }
 
