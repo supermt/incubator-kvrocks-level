@@ -86,6 +86,7 @@ Status LevelMigrator::sendSnapshot() {
 
   if (meta_compact_sst.empty() || subkey_compact_sst.empty()) {
     storage_->GetDB()->ContinueBackgroundWork();
+    LOG(ERROR) << "No SSTs are found";
     return {Status::NotOK, "No SSTs can be found."};
   }
 
@@ -140,6 +141,7 @@ Status LevelMigrator::sendSnapshot() {
   s = util::CheckCmdOutput(migration_cmds, &file_copy_output);
   if (!s.IsOK()) {
     storage_->GetDB()->ContinueBackgroundWork();
+    LOG(ERROR) << "Failed on copying";
     return {Status::NotOK, "Failed on copy file: " + file_copy_output};
   }
 
@@ -169,6 +171,7 @@ Status LevelMigrator::sendSnapshot() {
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
       storage_->GetDB()->ContinueBackgroundWork();
+      LOG(ERROR) << "META Ingestion failed";
       return s;
     }
   }
@@ -191,6 +194,7 @@ Status LevelMigrator::sendSnapshot() {
     LOG(INFO) << level_ingest_cmd;
     s = util::CheckCmdOutput(level_ingest_cmd, &ingest_output);
     if (!s.IsOK()) {
+      LOG(ERROR) << "SUBKEY ingestion failed";
       storage_->GetDB()->ContinueBackgroundWork();
       return s;
     }
@@ -200,7 +204,8 @@ Status LevelMigrator::sendSnapshot() {
 
   LOG(INFO) << "Level ingestion finished, Time taken(us)" << end - start;
 
-  storage_->GetDB()->ContinueBackgroundWork();
+  auto rocks = storage_->GetDB()->ContinueBackgroundWork();
+  if (!rocks.ok()) LOG(ERROR) << rocks.ToString();
   return Status::OK();
 }
 Status LevelMigrator::syncWal() { return Status::OK(); }
