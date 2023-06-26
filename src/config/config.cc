@@ -140,6 +140,8 @@ Config::Config() {
       {"migration_agent_location", true,
        new StringField(&migration_agent_location,
                        "/home/supermt/CLionProjects/incubator-kvrocks/build/migration_agent")},
+      {"global_migration_sync_dir", true, new StringField(&global_migration_sync_dir, "/tmp/migration_sync/")},
+      // end of mofication
       {"log-level", true, new EnumField(&log_level, log_levels, google::INFO)},
       {"pidfile", true, new StringField(&pidfile, "")},
       {"max-io-mb", false, new IntField(&max_io_mb, 500, 0, INT_MAX)},
