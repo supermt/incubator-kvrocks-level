@@ -265,7 +265,7 @@ class LevelMigrator : public CompactAndMergeMigrator {
 
  protected:
   Status sendSnapshot() override;
-  Status syncWal() override;
+//  Status syncWal() override;
 
   std::string GetName() override { return "level-migration"; }
 
