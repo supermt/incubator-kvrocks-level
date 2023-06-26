@@ -218,6 +218,6 @@ Status LevelMigrator::startIngestion(const std::map<int, std::vector<std::string
 
   auto end = util::GetTimeStampUS();
 
-  LOG(INFO) << "Level ingestion on column family " << cf_name << "finished, Time taken(us)" << end - start;
+  LOG(INFO) << "Level ingestion on column family [" << cf_name << "] finished, Time taken(us)" << end - start;
   return Status::OK();
 }
