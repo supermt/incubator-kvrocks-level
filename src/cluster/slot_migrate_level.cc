@@ -168,7 +168,7 @@ Status LevelMigrator::sendSnapshot() {
     }
     meta_file_str.pop_back();
 
-    std::string ingestion_command = " CLUSTERX sst_ingest local";
+    std::string ingestion_command = " sst_ingest local";
     ingestion_command += (" " + std::string(engine::kMetadataColumnFamilyName));
     ingestion_command += (" " + meta_file_str);
     ingestion_command += (" " + dst_node_);
@@ -192,7 +192,7 @@ Status LevelMigrator::sendSnapshot() {
     }
     subkey_file_str.pop_back();
 
-    std::string ingestion_command = " CLUSTERX sst_ingest local";
+    std::string ingestion_command = " sst_ingest local";
     ingestion_command += (" " + std::string(engine::kSubkeyColumnFamilyName));
     ingestion_command += (" " + subkey_file_str);
     ingestion_command += (" " + dst_node_);
