@@ -211,6 +211,15 @@ class CommandClusterX : public Commander {
       if (!s.IsOK()) {
         return s;
       }
+      slots_.clear();
+      auto slot_vec = util::Split(args_[2], ",");
+      if (slot_vec.size() == 0)
+        return s;
+      else {
+        for (const auto &slot_str : slot_vec) {
+          slots_.push_back(std::stoi(slot_str));
+        }
+      }
 
       if (strcasecmp(args_[3].c_str(), "node") != 0) {
         return {Status::RedisParseErr, "Invalid setslot options"};
@@ -264,7 +273,13 @@ class CommandClusterX : public Commander {
         *output = redis::Error(s.Msg());
       }
     } else if (subcommand_ == "setslot") {
-      Status s = svr->cluster->SetSlotRanges(slot_ranges_, args_[4], set_version_);
+      Status s;
+      if (slots_.empty()) {
+        s = svr->cluster->SetSlotRanges(slot_ranges_, args_[4], set_version_);
+      } else {
+        s = svr->cluster->SetSlotRanges(slots_, args_[4], set_version_);
+      }
+
       if (s.IsOK()) {
         need_persist_nodes_info = true;
         *output = redis::SimpleString("OK");

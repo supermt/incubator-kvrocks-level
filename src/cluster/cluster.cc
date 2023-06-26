@@ -147,6 +147,51 @@ Status Cluster::SetSlotRanges(const std::vector<SlotRange> &slot_ranges, const s
   return Status::OK();
 }
 
+Status Cluster::SetSlotRanges(const std::vector<int> &slots, const std::string &node_id, int64_t new_version) {
+  if (new_version <= 0 || new_version != version_ + 1) {
+    return {Status::NotOK, errInvalidClusterVersion};
+  }
+
+  if (node_id.size() != kClusterNodeIdLen) {
+    return {Status::NotOK, errInvalidNodeID};
+  }
+
+  // Get the node which we want to assign slots into it
+  std::shared_ptr<ClusterNode> to_assign_node = nodes_[node_id];
+  if (to_assign_node == nullptr) {
+    return {Status::NotOK, "No this node in the cluster"};
+  }
+
+  if (to_assign_node->role != kClusterMaster) {
+    return {Status::NotOK, errNoMasterNode};
+  }
+
+  // Update version
+  version_ = new_version;
+  for (auto slot : slots) {
+    std::shared_ptr<ClusterNode> old_node = slots_nodes_[slot];
+    if (old_node != nullptr) {
+      old_node->slots[slot] = false;
+    }
+    to_assign_node->slots[slot] = true;
+    slots_nodes_[slot] = to_assign_node;
+
+    // Clear data of migrated slot or record of imported slot
+    if (old_node == myself_ && old_node != to_assign_node) {
+      // If slot is migrated from this node
+      if (migrated_slots_.count(slot) > 0) {
+        svr_->slot_migrator->ClearKeysOfSlot(kDefaultNamespace, slot);
+        migrated_slots_.erase(slot);
+      }
+      // If slot is imported into this node
+      if (imported_slots_.count(slot) > 0) {
+        imported_slots_.erase(slot);
+      }
+    }
+  }
+  return Status::OK();
+}
+
 // cluster setnodes $all_nodes_info $version $force
 // one line of $all_nodes: $node_id $host $port $role $master_node_id $slot_range
 Status Cluster::SetClusterNodes(const std::string &nodes_str, int64_t version, bool force) {

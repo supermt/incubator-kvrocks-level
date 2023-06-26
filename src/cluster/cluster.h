@@ -75,6 +75,7 @@ class Cluster {
   Status GetClusterNodes(std::string *nodes_str);
   Status SetNodeId(const std::string &node_id);
   Status SetSlotRanges(const std::vector<SlotRange> &slot_ranges, const std::string &node_id, int64_t version);
+  Status SetSlotRanges(const std::vector<int> &slots, const std::string &node_id, int64_t version);
   Status SetSlotMigrated(int slot, const std::string &ip_port);
   Status SetSlotImported(int slot);
   Status GetSlotsInfo(std::vector<SlotInfo> *slot_infos);
