@@ -169,7 +169,7 @@ Status LevelMigrator::sendSnapshot() {
     storage_->GetDB()->ContinueBackgroundWork();
     return s;
   }
-  s = startIngestion(meta_level_files, true, engine::kSubkeyColumnFamilyName);
+  s = startIngestion(subkey_level_files, true, engine::kSubkeyColumnFamilyName);
   if (!s.IsOK()) {
     storage_->GetDB()->ContinueBackgroundWork();
     return s;
@@ -193,7 +193,7 @@ Status LevelMigrator::startIngestion(const std::map<int, std::vector<std::string
     if (meta_level.second.empty()) {
       continue;
     }
-    for (const auto& file : meta_level.second) {
+    for (const auto &file : meta_level.second) {
       if (remote_or_local) {
         meta_file_str += (svr_->GetConfig()->db_dir + "/" + file + ",");
       } else {
