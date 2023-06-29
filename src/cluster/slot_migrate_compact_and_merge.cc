@@ -304,7 +304,7 @@ Status CompactAndMergeMigrator::copyAndIngest(std::vector<std::string> &external
     }
 
     auto end = util::GetTimeStampUS();
-    LOG(INFO) << "File copied, time taken(us): : " << end - start;
+    LOG(INFO) << "File copied, time taken(us): " << end - start;
   }
 
   auto start = util::GetTimeStampUS();
@@ -313,7 +313,7 @@ Status CompactAndMergeMigrator::copyAndIngest(std::vector<std::string> &external
   if (!s.IsOK()) {
     return s;
   }
-  LOG(INFO) << "File ingested into target server, time taken(us): : " << end - start;
+  LOG(INFO) << "File ingested into target server, time taken(us): " << end - start;
 
   return Status::OK();
 }
@@ -329,7 +329,8 @@ Status CompactAndMergeMigrator::startIngestion(const std::vector<std::string> &f
   auto start = util::GetTimeStampUS();
   std::string file_str;
   for (const auto &file_name : file_list) {
-    file_str += (svr_->GetConfig()->db_dir + "/" + file_name + ",");
+    auto fn = util::Split(file_name, "/").back();
+    file_str += (svr_->GetConfig()->db_dir + "/" + fn + ",");
     file_str.pop_back();
   }
 
@@ -337,7 +338,7 @@ Status CompactAndMergeMigrator::startIngestion(const std::vector<std::string> &f
   ingestion_command += (" " + cf_name);
   ingestion_command += (" " + file_str);
   ingestion_command += (" " + dst_node_);
-  auto file_ingestion_cmd = target_server_pre + ingestion_command + " slow";
+  auto file_ingestion_cmd = target_server_pre + ingestion_command + " slow 0";
 
   LOG(INFO) << file_ingestion_cmd;
   s = util::CheckCmdOutput(file_ingestion_cmd, &ingest_output);
