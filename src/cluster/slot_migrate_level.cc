@@ -179,6 +179,7 @@ Status LevelMigrator::sendSnapshot() {
   return Status::OK();
 }
 Status LevelMigrator::syncWal() { return Status::OK(); }
+
 Status LevelMigrator::startIngestion(const std::map<int, std::vector<std::string>> &file_list, bool remote_or_local,
                                      const std::string &cf_name) {
   // Start ingestion

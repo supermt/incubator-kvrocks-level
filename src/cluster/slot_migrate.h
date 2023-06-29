@@ -248,14 +248,24 @@ class CompactAndMergeMigrator : public BatchedSlotMigrator {
   }
 
  private:
-  std::vector<std::string> meta_ssts;
-  std::vector<std::string> subkey_ssts;
+  std::vector<std::string> compaction_input_meta;
+  std::vector<std::string> compaction_input_subkey;
 
  protected:
   Status sendSnapshot() override;
   //  rocksdb::DB *compact_ptr;
   std::vector<std::string> slot_prefix_list_;
   std::vector<std::string> subkey_prefix_list_;
+
+  Status extractPrefix();
+
+  Status extractSlotSSTs(rocksdb::ColumnFamilyMetaData &cf_ssts, std::vector<std::string> *target);
+  Status performCompactionOnCF(rocksdb::ColumnFamilyHandle *cfh, std::vector<std::string> &input_file,
+                               std::vector<std::string> *compaction_output);
+  Status generateExternalFile(std::vector<std::string> &compaction_output, std::vector<std::string> *external_file_list,
+                              rocksdb::ColumnFamilyHandle *cfh);
+  Status copyAndIngest(std::vector<std::string> &external_file_list, const std::string &cf_name);
+  Status startIngestion(const std::vector<std::string> &file_list, bool is_local, const std::string &cf_name);
 };
 
 class LevelMigrator : public CompactAndMergeMigrator {

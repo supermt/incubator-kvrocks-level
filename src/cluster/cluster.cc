@@ -897,6 +897,7 @@ Status Cluster::IngestFiles(const std::string &column_family, const std::vector<
   LOG(INFO) << "Ingestion completed, Time taken(us): " << end - start;
   return Status::OK();
 }
+
 Status Cluster::MigrateSlots(std::vector<int> &slots, const std::string &dst_node_id) {
   Status s;
   auto dst = nodes_[dst_node_id];
