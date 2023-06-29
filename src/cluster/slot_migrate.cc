@@ -327,7 +327,7 @@ Status SlotMigrator::sendSnapshot() {
   LOG(INFO) << "[migrate] Iterate keys of slot, key's prefix: " << prefix;
 
   // Seek to the beginning of keys start with 'prefix' and iterate all these keys
-  for (iter->Seek(prefix); iter->Valid(); iter->Next()) {
+    for (iter->Seek(prefix); iter->Valid(); iter->Next()) {
     // The migrating task has to be stopped, if server role is changed from master to slave
     // or flush command (flushdb or flushall) is executed
     if (stop_migration_) {

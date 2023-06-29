@@ -224,7 +224,6 @@ Status CompactAndMergeMigrator::generateExternalFile(std::vector<std::string> &c
     if (!rocks_s.ok()) {
       return {Status::NotOK, "Open file reader failed: " + rocks_s.ToString()};
     }
-    auto read_it = reader.NewIterator(read_options);
     auto out_put_name = fn + ".out";
     rocks_s = writer.Open(out_put_name);
 
@@ -232,16 +231,19 @@ Status CompactAndMergeMigrator::generateExternalFile(std::vector<std::string> &c
       return {Status::NotOK, "Open file write failed: " + rocks_s.ToString()};
     }
 
-    read_it->SeekToFirst();
-    std::string smallest_prefix = slot_prefix_list_.front();
-    std::string largest_prefix = slot_prefix_list_.back();
-    for (; read_it->Valid(); read_it->Next()) {
-      auto current_key = read_it->key();
-      if (compare_with_prefix(smallest_prefix, current_key.ToString()) <= 0 &&
-          compare_with_prefix(largest_prefix, current_key.ToString()) >= 0) {
-        writer.Put(read_it->key(), read_it->value());
+    for (int slot : migration_job_->slots) {
+      auto iter = reader.NewIterator(read_options);
+      iter->SeekToFirst();
+      std::string prefix;
+      ComposeSlotKeyPrefix(namespace_, slot, &prefix);
+      for (iter->Seek(prefix); iter->Valid(); iter->Next()) {
+        if (!iter->key().starts_with(prefix)) {
+          break;
+        }
+        writer.Put(iter->key(), iter->value());
       }
     }
+
     rocks_s = writer.Finish();
     if (!rocks_s.ok()) {
       return {Status::NotOK, "File reader failed: " + rocks_s.ToString()};
@@ -328,19 +330,19 @@ Status CompactAndMergeMigrator::startIngestion(const std::vector<std::string> &f
   for (const auto &file_name : file_list) {
     file_str += (svr_->GetConfig()->db_dir + "/" + file_name + ",");
     file_str.pop_back();
-
-    std::string ingestion_command = " sst_ingest local";
-    ingestion_command += (" " + cf_name);
-    ingestion_command += (" " + file_str);
-    ingestion_command += (" " + dst_node_);
-    auto file_ingestion_cmd = target_server_pre + ingestion_command + " fast " + file_name;
-    LOG(INFO) << file_ingestion_cmd;
-    s = util::CheckCmdOutput(file_ingestion_cmd, &ingest_output);
-    if (!s.IsOK()) {
-      return s;
-    }
   }
 
+  std::string ingestion_command = " sst_ingest local";
+  ingestion_command += (" " + cf_name);
+  ingestion_command += (" " + file_str);
+  ingestion_command += (" " + dst_node_);
+  auto file_ingestion_cmd = target_server_pre + ingestion_command + " slow " + file_str;
+  
+  LOG(INFO) << file_ingestion_cmd;
+  s = util::CheckCmdOutput(file_ingestion_cmd, &ingest_output);
+  if (!s.IsOK()) {
+    return s;
+  }
   auto end = util::GetTimeStampUS();
 
   LOG(INFO) << "File ingestion on column family [" << cf_name << "] finished, time taken(us): " << end - start;
