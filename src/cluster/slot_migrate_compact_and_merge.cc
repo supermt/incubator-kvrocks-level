@@ -22,8 +22,13 @@ CompactAndMergeMigrator::CompactAndMergeMigrator(Server *svr, int migration_spee
     : BatchedSlotMigrator(svr, migration_speed, pipeline_size_limit, seq_gap) {}
 Status CompactAndMergeMigrator::sendSnapshot() {
   // Step 1. extract keys prefix
+  LOG(INFO) << "[compact-and-merge] Start migrating snapshot of slot ";
   auto db_ptr = storage_->GetDB();
   db_ptr->PauseBackgroundWork();
+  LOG(INFO) << "[compact-and-merge] db pause finished";
+
+  std::vector<std::string> compaction_input_meta;
+  std::vector<std::string> compaction_input_subkey;
 
   auto start = util::GetTimeStampUS();
   auto s = extractPrefix();
@@ -51,20 +56,38 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Meta file located, time taken(us): : " << end - start;
+  LOG(INFO) << "Meta file located, time taken(us): " << end - start;
 
   start = util::GetTimeStampUS();
+
   s = extractSlotSSTs(subkeycf_ssts, &compaction_input_subkey);
   if (!s.IsOK()) {
     storage_->GetDB()->ContinueBackgroundWork();
     return s;
   }
+
   end = util::GetTimeStampUS();
   LOG(INFO) << "Subkey file located, time taken(us): " << end - start;
 
   // step 3. doing compaction
   start = util::GetTimeStampUS();
   std::vector<std::string> compaction_output_meta;
+  std::string temp = "[";
+  for (const auto &file : compaction_input_meta) {
+    temp += (file + ",");
+  }
+  temp.pop_back();
+  temp += "]";
+  LOG(INFO) << "Meta file list: " << temp;
+
+  temp = "[";
+  for (const auto &file : compaction_input_subkey) {
+    temp += (file + ",");
+  }
+  temp.pop_back();
+  temp += "]";
+
+  LOG(INFO) << "Subkey file list: " << temp;
   s = performCompactionOnCF(meta_cf_handle, compaction_input_meta, &compaction_output_meta);
   if (!s.IsOK()) {
     storage_->GetDB()->ContinueBackgroundWork();
@@ -98,7 +121,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
 
   start = util::GetTimeStampUS();
   std::vector<std::string> filter_ext_files_subkey;
-  s = generateExternalFile(compaction_output_meta, &filter_ext_files_subkey, meta_cf_handle);
+  s = generateExternalFile(compaction_output_subkey, &filter_ext_files_subkey, subkey_cf_handle);
   if (!s.IsOK()) {
     storage_->GetDB()->ContinueBackgroundWork();
     return s;
@@ -135,7 +158,7 @@ Status CompactAndMergeMigrator::extractSlotSSTs(rocksdb::ColumnFamilyMetaData &c
             compare_with_prefix(sst_info.largestkey, prefix) >= 0) {
           auto sst_name = util::Split(sst_info.name, "/").back();
           LOG(INFO) << sst_name;
-          compaction_input_meta.push_back(sst_name);
+          target->push_back(sst_name);
           break;  // no need for redundant inserting
         }
       }

@@ -247,10 +247,6 @@ class CompactAndMergeMigrator : public BatchedSlotMigrator {
     return input;
   }
 
- private:
-  std::vector<std::string> compaction_input_meta;
-  std::vector<std::string> compaction_input_subkey;
-
  protected:
   Status sendSnapshot() override;
   //  rocksdb::DB *compact_ptr;
