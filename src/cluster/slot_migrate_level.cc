@@ -24,7 +24,7 @@ LevelMigrator::LevelMigrator(Server *svr, int migration_speed, int pipeline_size
 Status LevelMigrator::sendSnapshot() {
   auto start = util::GetTimeStampUS();
   auto end = util::GetTimeStampUS();
-  storage_->GetDB()->PauseBackgroundWork();
+  //  storage_->GetDB()->PauseBackgroundWork();
   auto src_config = svr_->GetConfig();
   std::string src_info = "127.0.0.1:" + std::to_string(src_config->port) + "@" + src_config->db_dir;
   std::string dst_info =

@@ -133,7 +133,7 @@ Status CompactAndMergeMigrator::extractSlotSSTs(rocksdb::ColumnFamilyMetaData &c
       for (const auto &prefix : slot_prefix_list_) {
         if (compare_with_prefix(sst_info.smallestkey, prefix) <= 0 &&
             compare_with_prefix(sst_info.largestkey, prefix) >= 0) {
-          compaction_input_meta.push_back(sst_info.name);
+          compaction_input_meta.push_back(util::Split(sst_info.name, "/").back());
           break;  // no need for redundant inserting
         }
       }
