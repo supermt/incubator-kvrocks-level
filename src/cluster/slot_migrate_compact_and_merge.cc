@@ -129,6 +129,24 @@ Status CompactAndMergeMigrator::sendSnapshot() {
   end = util::GetTimeStampUS();
   LOG(INFO) << "Subkey file filtered, time taken(us): " << end - start;
 
+  temp = "[";
+  for (const auto &file : filter_ext_files_meta) {
+    temp += (file + ",");
+  }
+  temp.pop_back();
+  temp += "]";
+
+  LOG(INFO) << "Meta filtered file list: " << temp;
+
+  temp = "[";
+  for (const auto &file : filter_ext_files_subkey) {
+    temp += (file + ",");
+  }
+  temp.pop_back();
+  temp += "]";
+
+  LOG(INFO) << "Subkey filtered file list: " << temp;
+
   // Step 5. File ingest to remote server
   s = copyAndIngest(filter_ext_files_meta, engine::kMetadataColumnFamilyName);
   if (!s.IsOK()) {
@@ -146,7 +164,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
 
   storage_->GetDB()->ContinueBackgroundWork();
 
-  return {Status::NotOK, "not-finished"};
+  return Status::OK();
 }
 
 Status CompactAndMergeMigrator::extractSlotSSTs(rocksdb::ColumnFamilyMetaData &cf_ssts,
@@ -157,7 +175,6 @@ Status CompactAndMergeMigrator::extractSlotSSTs(rocksdb::ColumnFamilyMetaData &c
         if (compare_with_prefix(sst_info.smallestkey, prefix) <= 0 &&
             compare_with_prefix(sst_info.largestkey, prefix) >= 0) {
           auto sst_name = util::Split(sst_info.name, "/").back();
-          LOG(INFO) << sst_name;
           target->push_back(sst_name);
           break;  // no need for redundant inserting
         }
