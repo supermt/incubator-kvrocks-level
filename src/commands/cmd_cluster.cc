@@ -336,7 +336,7 @@ class CommandIngest : public Commander {
     files_str_ = args[3];
     server_id_ = args[4];
     ingestion_mode_ = args[5];
-    if (args.size() > 6) {
+    if (args.size() > 6 && ingestion_mode_ == "fast") {
       auto level_str = args[6];
       auto temp = GET_OR_RET(ParseInt<int64_t>(level_str, 10));
       target_level_ = temp;

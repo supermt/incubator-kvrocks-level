@@ -259,8 +259,9 @@ Status CompactAndMergeMigrator::copyAndIngest(std::vector<std::string> &external
   auto db_ptr = storage_->GetDB();
   std::string source_ssts;
   db_ptr->GetEnv()->GetAbsolutePath(storage_->GetConfig()->db_dir, &db_path_abs);
-  for (const auto &fn : external_file_list) {
+  for (const auto &full_fn : external_file_list) {
     std::string abs_name;
+    auto fn = util::Split(full_fn, ",").back();
     if (storage_->GetConfig()->db_dir[0] == '/') {
       abs_name = storage_->GetConfig()->db_dir + fn + " ";
     } else {
@@ -336,8 +337,8 @@ Status CompactAndMergeMigrator::startIngestion(const std::vector<std::string> &f
   ingestion_command += (" " + cf_name);
   ingestion_command += (" " + file_str);
   ingestion_command += (" " + dst_node_);
-  auto file_ingestion_cmd = target_server_pre + ingestion_command + " slow " + file_str;
-  
+  auto file_ingestion_cmd = target_server_pre + ingestion_command + " slow";
+
   LOG(INFO) << file_ingestion_cmd;
   s = util::CheckCmdOutput(file_ingestion_cmd, &ingest_output);
   if (!s.IsOK()) {
