@@ -32,7 +32,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   auto end = util::GetTimeStampUS();
-  LOG(INFO) << "Prefix extracted, time cost (us)" << end - start;
+  LOG(INFO) << "Prefix extracted, time taken (us): " << end - start;
 
   rocksdb::ColumnFamilyMetaData metacf_ssts;
   rocksdb::ColumnFamilyMetaData subkeycf_ssts;
@@ -51,7 +51,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Meta file located, time taken(us)" << end - start;
+  LOG(INFO) << "Meta file located, time taken(us): : " << end - start;
 
   start = util::GetTimeStampUS();
   s = extractSlotSSTs(subkeycf_ssts, &compaction_input_subkey);
@@ -60,7 +60,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Subkey file located, time taken(us)" << end - start;
+  LOG(INFO) << "Subkey file located, time taken(us): " << end - start;
 
   // step 3. doing compaction
   start = util::GetTimeStampUS();
@@ -71,7 +71,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Meta file compacted, time taken(us)" << end - start;
+  LOG(INFO) << "Meta file compacted, time taken(us): " << end - start;
 
   start = util::GetTimeStampUS();
 
@@ -82,7 +82,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Subkey file compacted, time taken(us)" << end - start;
+  LOG(INFO) << "Subkey file compacted, time taken(us): " << end - start;
 
   // step 4. file formatting and ingest to destination server
 
@@ -94,7 +94,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Meta file filtered, time taken(us)" << end - start;
+  LOG(INFO) << "Meta file filtered, time taken(us): " << end - start;
 
   start = util::GetTimeStampUS();
   std::vector<std::string> filter_ext_files_subkey;
@@ -104,7 +104,7 @@ Status CompactAndMergeMigrator::sendSnapshot() {
     return s;
   }
   end = util::GetTimeStampUS();
-  LOG(INFO) << "Subkey file filtered, time taken(us)" << end - start;
+  LOG(INFO) << "Subkey file filtered, time taken(us): " << end - start;
 
   // Step 5. File ingest to remote server
   s = copyAndIngest(filter_ext_files_meta, engine::kMetadataColumnFamilyName);
@@ -133,7 +133,9 @@ Status CompactAndMergeMigrator::extractSlotSSTs(rocksdb::ColumnFamilyMetaData &c
       for (const auto &prefix : slot_prefix_list_) {
         if (compare_with_prefix(sst_info.smallestkey, prefix) <= 0 &&
             compare_with_prefix(sst_info.largestkey, prefix) >= 0) {
-          compaction_input_meta.push_back(util::Split(sst_info.name, "/").back());
+          auto sst_name = util::Split(sst_info.name, "/").back();
+          LOG(INFO) << sst_name;
+          compaction_input_meta.push_back(sst_name);
           break;  // no need for redundant inserting
         }
       }
@@ -276,7 +278,7 @@ Status CompactAndMergeMigrator::copyAndIngest(std::vector<std::string> &external
     }
 
     auto end = util::GetTimeStampUS();
-    LOG(INFO) << "File copied, time taken(us): " << end - start;
+    LOG(INFO) << "File copied, time taken(us): : " << end - start;
   }
 
   auto start = util::GetTimeStampUS();
@@ -285,7 +287,7 @@ Status CompactAndMergeMigrator::copyAndIngest(std::vector<std::string> &external
   if (!s.IsOK()) {
     return s;
   }
-  LOG(INFO) << "File ingested into target server, time taken(us): " << end - start;
+  LOG(INFO) << "File ingested into target server, time taken(us): : " << end - start;
 
   return Status::OK();
 }
@@ -318,6 +320,6 @@ Status CompactAndMergeMigrator::startIngestion(const std::vector<std::string> &f
 
   auto end = util::GetTimeStampUS();
 
-  LOG(INFO) << "File ingestion on column family [" << cf_name << "] finished, Time taken(us)" << end - start;
+  LOG(INFO) << "File ingestion on column family [" << cf_name << "] finished, time taken(us): " << end - start;
   return Status::OK();
 }
